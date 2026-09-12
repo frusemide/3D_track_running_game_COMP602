@@ -1,5 +1,12 @@
 {
   "dependencies": {
+    "com.photonengine.fusion-physics": {
+      "version": "https://github.com/Photon-Server/Photon-UPM.git#fusion/v2/fusion-physics",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "30751772c97828f4ab637904424dd677012e95ad"
+    },
     "com.unity.ai.navigation": {
       "version": "2.0.10",
       "depth": 0,
