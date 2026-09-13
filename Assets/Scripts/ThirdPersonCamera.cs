@@ -34,9 +34,12 @@ public class ThirdPersonCamera : MonoBehaviour
         if (_target != null)
         {
             _pivot = _target.position + _targetOffset;
-            // Start the camera looking along the character's current facing.
             _yaw = _target.eulerAngles.y;
             _pitch = 15f;
+
+            // Lock and hide the cursor for gameplay camera control.
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
         }
     }
 
@@ -45,14 +48,17 @@ public class ThirdPersonCamera : MonoBehaviour
         if (_target == null)
             return;
 
-        // --- Read mouse to update orbit angles ---
-        var mouse = Mouse.current;
-        if (mouse != null)
+        // Only read mouse-orbit input when the cursor is locked (not while a menu is open).
+        if (Cursor.lockState == CursorLockMode.Locked)
         {
-            Vector2 delta = mouse.delta.ReadValue();
-            _yaw += delta.x * _mouseSensitivity;
-            _pitch -= delta.y * _mouseSensitivity;             // invert so moving mouse up looks up
-            _pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
+            var mouse = Mouse.current;
+            if (mouse != null)
+            {
+                Vector2 delta = mouse.delta.ReadValue();
+                _yaw += delta.x * _mouseSensitivity;
+                _pitch -= delta.y * _mouseSensitivity;
+                _pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
+            }
         }
 
         // --- Smoothly follow the target with the orbit pivot ---

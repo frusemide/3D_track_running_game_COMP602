@@ -725,7 +725,7 @@ SkinnedMeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -4565884009001823619, guid: 3dea2934722ed074cabfdabf8b796e41, type: 3}
+  - {fileID: 2100000, guid: f73328ba546b1f94c9e3cb85217b468b, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2145,7 +2145,7 @@ SkinnedMeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -840037777384891287, guid: 3dea2934722ed074cabfdabf8b796e41, type: 3}
+  - {fileID: 2100000, guid: 78c44a0662cc6ff4d89f261f2e6f5185, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2296,7 +2296,7 @@ Transform:
   m_GameObject: {fileID: 8465537611731112471}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -19.56076, y: 1.2, z: 227.3195}
+  m_LocalPosition: {x: 899.32794, y: 538.2955, z: -830.0499}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2410,7 +2410,6 @@ MonoBehaviour:
   _interactableMask:
     serializedVersion: 2
     m_Bits: 64
-  _interactKey: 19
 --- !u!114 &5316472212503792202
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2424,6 +2423,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PracticeController
   _countdownDuration: 3
+  _finishZ: 233
   _State: 0
   _LastTime: 0
 --- !u!54 &2697522606296147698

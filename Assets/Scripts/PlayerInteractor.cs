@@ -34,14 +34,16 @@ public class PlayerInteractor : MonoBehaviour
         if (_player == null) return;
         if (_player.Object == null) return;
 
+        // Don't detect or trigger interactions while a menu is open.
+        if (GameplayInputBlock.Blocked)
+            return;
+
         DetectInteractable();
 
-        // Use the direct eKey check that we confirmed works, and call Interact when focused.
         if (_current != null
             && Keyboard.current != null
             && Keyboard.current.eKey.wasPressedThisFrame)
         {
-            Debug.Log("Calling Interact!");
             _current.Interact(_player);
         }
     }

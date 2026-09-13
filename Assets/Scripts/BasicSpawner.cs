@@ -1,15 +1,15 @@
 using Fusion;
-using Fusion.Addons.Physics;
 using Fusion.Sockets;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.SceneManagement;
 
+// In-lobby spawn + input handler. Lives in the Gathering_Lobby scene. Does NOT start the
+// session (that's GameLauncher's job) -- it finds the runner the launcher created and
+// registers its callbacks so it receives OnPlayerJoined / OnInput etc.
 public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
 {
-    private NetworkRunner _runner;
     [SerializeField] private NetworkPrefabRef _playerPrefab;
     private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new Dictionary<PlayerRef, NetworkObject>();
 
@@ -19,14 +19,30 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
     private bool _pedalA;
     private bool _pedalB;
 
+    private NetworkRunner _runner;
+
+    private void Start()
+    {
+        // The launcher created the runner in the menu scene and it persisted here.
+        // Find it and register ourselves as a callback handler so we receive
+        // OnPlayerJoined / OnInput / etc. in this scene.
+        _runner = FindFirstObjectByType<NetworkRunner>();
+        if (_runner != null)
+        {
+            _runner.AddCallbacks(this);
+        }
+        else
+        {
+            Debug.LogError("BasicSpawner: no NetworkRunner found. Did you start from the menu?");
+        }
+    }
+
     void INetworkRunnerCallbacks.OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
         if (runner.IsServer)
         {
-            // Create a unique position for the player
             Vector3 spawnPosition = new Vector3((player.RawEncoded % runner.Config.Simulation.PlayerCount) * 3, 1.1f, 0);
             NetworkObject networkPlayerObject = runner.Spawn(_playerPrefab, spawnPosition, Quaternion.identity, player);
-            // Keep track of the player avatars for easy access
             _spawnedCharacters.Add(player, networkPlayerObject);
         }
     }
@@ -39,12 +55,14 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
             _spawnedCharacters.Remove(player);
         }
     }
+
     private void Update()
     {
+        if (GameplayInputBlock.Blocked)
+            return;   // don't sample pedals while a menu is open
 
         if (Keyboard.current != null)
         {
-            // wasPressedThisFrame = the moment of press only (edge), not while held.
             _pedalA = _pedalA | Keyboard.current[_pedalAKey].wasPressedThisFrame;
             _pedalB = _pedalB | Keyboard.current[_pedalBKey].wasPressedThisFrame;
         }
@@ -55,9 +73,15 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
         var data = new NetworkInputData();
         var keyboard = Keyboard.current;
 
-        if(keyboard != null)
-{
-            // Raw WASD as a 2D intent (x = strafe, y = forward/back).
+        // If a menu is open locally, send empty input (no movement, no pedals).
+        if (GameplayInputBlock.Blocked)
+        {
+            input.Set(data);   // empty input
+            return;
+        }
+
+        if (keyboard != null)
+        {
             Vector2 moveInput = Vector2.zero;
             if (keyboard.wKey.isPressed) moveInput.y += 1f;
             if (keyboard.sKey.isPressed) moveInput.y -= 1f;
@@ -80,7 +104,7 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         data.Buttons.Set(NetworkInputData.Sprint,
-        keyboard != null && keyboard.leftShiftKey.isPressed);
+            keyboard != null && keyboard.leftShiftKey.isPressed);
         data.Buttons.Set(NetworkInputData.RunPedalA, _pedalA);
         data.Buttons.Set(NetworkInputData.RunPedalB, _pedalB);
         _pedalA = false;
@@ -88,6 +112,7 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
 
         input.Set(data);
     }
+
     void INetworkRunnerCallbacks.OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     void INetworkRunnerCallbacks.OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
     void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner runner) { }
@@ -103,45 +128,4 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
     void INetworkRunnerCallbacks.OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     void INetworkRunnerCallbacks.OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
     void INetworkRunnerCallbacks.OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
-
-    async void StartGame(GameMode mode)
-    {
-        // Create the Fusion runner and let it know that we will be providing user input
-        _runner = gameObject.AddComponent<NetworkRunner>();
-        gameObject.AddComponent<RunnerSimulatePhysics>();
-        _runner.ProvideInput = true;
-
-        // Create the NetworkSceneInfo from the current scene
-        var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
-        var sceneInfo = new NetworkSceneInfo();
-        if (scene.IsValid)
-        {
-            sceneInfo.AddSceneRef(scene, LoadSceneMode.Additive);
-        }
-
-        // Start or join (depends on gamemode) a session with a specific name
-        await _runner.StartGame(new StartGameArgs()
-        {
-            GameMode = mode,
-            SessionName = "TestRoom",
-            Scene = scene,
-            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
-        });
-    }
-
-    private void OnGUI()
-    {
-        if (_runner == null)
-        {
-            if (GUI.Button(new Rect(0, 0, 200, 40), "Host"))
-            {
-                StartGame(GameMode.Host);
-            }
-
-            if (GUI.Button(new Rect(0, 40, 200, 40), "Join"))
-            {
-                StartGame(GameMode.Client);
-            }
-        }
-    }
 }
