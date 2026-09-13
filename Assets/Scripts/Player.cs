@@ -18,6 +18,15 @@ public class Player : NetworkBehaviour
         TwoKeyRace
     }
 
+    public enum CelebrationState : byte
+    {
+        None,      // not celebrating
+        First,     // 1st place victory
+        Second,    // 2nd place victory
+        Third,     // 3rd place victory
+        Clapping   // everyone else
+    }
+
     // Host-authoritative running sub-state, networked so all clients see the same thing.
     public enum StumbleState : byte
     {
@@ -55,6 +64,11 @@ public class Player : NetworkBehaviour
     [Networked] private byte _lastPedal { get; set; }
     // Recovery lockout timer after a stumble.
     [Networked] private TickTimer _recoverTimer { get; set; }
+   // --- Race participation (Option 3: per-player race state) ---
+    [Networked] public NetworkBool IsRacing { get; set; }     // in the current race?
+    [Networked] public NetworkBool HasFinished { get; set; }  // crossed the finish line?
+    [Networked] public int FinishTick { get; set; }           // tick when finished (for ranking/time)// --- Race participation (Option 3: per-player race state) ---
+    [Networked] public CelebrationState Celebration { get; set; }  // choosing celebration animation to play
 
     private void Awake()
     {
@@ -101,7 +115,7 @@ public class Player : NetworkBehaviour
     private MovementMode ResolveMode()
     {
         if (_raceManager == null)
-            return MovementMode.FreeMovement;
+            return InPracticeMode ? MovementMode.TwoKeyRace : MovementMode.FreeMovement;
 
         switch (_raceManager.Phase)
         {
@@ -118,6 +132,10 @@ public class Player : NetworkBehaviour
                 return InPracticeMode ? MovementMode.TwoKeyRace : MovementMode.FreeMovement;
 
             case RaceManager.RacePhase.Results:
+                // Keep racing players in two-key so they coast to a stop (decel), rather
+                // than freezing. HandleTwoKeyRace ignores pedals once HasFinished.
+                return IsRacing ? MovementMode.TwoKeyRace : MovementMode.Locked;
+
             case RaceManager.RacePhase.Podium:
             default:
                 return MovementMode.Locked;
@@ -165,8 +183,8 @@ public class Player : NetworkBehaviour
                 // Passive decay every tick: stop hammering and you bleed speed.
                 Speed = Mathf.Max(0f, Speed - _speedDecayPerSecond * dt);
 
-                // Handle a pedal press this tick (edge-triggered upstream).
-                if (pedalA || pedalB)
+                // Only accept pedals if still racing (not yet finished). Finished players coast.
+                if (!HasFinished && (pedalA || pedalB))
                 {
                     byte pressed = pedalA ? (byte)1 : (byte)2;
 
@@ -235,6 +253,39 @@ public class Player : NetworkBehaviour
         _lastPedal = 0;
     }
 
+    // Called by a coordinator when a race begins, to enrol this player.
+    public void StartRacing()
+    {
+        if (!HasStateAuthority) return;
+        IsRacing = true;
+        HasFinished = false;
+        FinishTick = 0;
+    }
+
+    public void SetCelebration(CelebrationState state)
+    {
+        if (!HasStateAuthority) return;
+        Celebration = state;
+    }
+
+    // Called (host-side) when this player crosses the finish line.
+    public void RecordFinish(int tick)
+    {
+        if (!HasStateAuthority) return;
+        if (!IsRacing || HasFinished) return;   // only finish once, only if racing
+        HasFinished = true;
+        FinishTick = tick;
+    }
+
+    // Called by a coordinator to clear race state (race over / left / reset).
+    public void ResetRace()
+    {
+        if (!HasStateAuthority) return;
+        IsRacing = false;
+        HasFinished = false;
+        FinishTick = 0;
+    }
+
     public void SetForward(Vector3 forward)
     {
         _forward = forward.normalized;
@@ -254,6 +305,10 @@ public class Player : NetworkBehaviour
             {
                 case nameof(RunState):
                     OnRunStateChanged(RunState);
+                    break;
+
+                case nameof(Celebration):
+                    OnCelebrationChanged(Celebration);
                     break;
             }
         }
@@ -277,6 +332,32 @@ public class Player : NetworkBehaviour
 
             case StumbleState.Running:
                 // Returns to Locomotion automatically when GetUp finishes (exit-time transition).
+                break;
+        }
+    }
+
+    private void OnCelebrationChanged(CelebrationState state)
+    {
+        if (_animator == null)
+            return;
+
+        switch (state)
+        {
+            case CelebrationState.First:
+                _animator.SetTrigger("Victory1");
+                break;
+            case CelebrationState.Second:
+                _animator.SetTrigger("Victory2");
+                break;
+            case CelebrationState.Third:
+                _animator.SetTrigger("Victory3");
+                break;
+            case CelebrationState.Clapping:
+                _animator.SetTrigger("Clap");
+                break;
+            case CelebrationState.None:
+                // back to normal locomotion (e.g. when returning to lobby)
+                _animator.Play("Locomotion", 0);
                 break;
         }
     }

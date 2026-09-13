@@ -18,86 +18,61 @@ using UnityEngine;
 // Only the countdown itself is networked/frame-synced, because it gates movement.
 //
 // All clients read Phase and react locally through the ChangeDetector in Render().
+
+// Real race coordinator. Drives Lobby -> Countdown -> Racing -> Results -> Podium -> Lobby.
+// Uses the shared RaceLogic + per-player race state (Player.IsRacing/HasFinished/FinishTick).
+//
+// This version wires REAL finish detection (position-based, host-authoritative) into the
+// Racing phase, testable on a single scene. Scene loading (Race_Event) is deferred; the
+// LoadScene calls remain commented until we add multi-scene support.
 public class RaceManager : NetworkBehaviour
 {
     public enum RacePhase
     {
-        Lobby,      // Default map: gathering, shop, practice tracks (all local sub-states)
-        Countdown,  // Race map loaded; flyover (local) then synced countdown, movement locked
-        Racing,     // Running; finish ticks recorded as players cross
-        Results,    // Times ranked, progress saved
-        Podium      // Top 3 shown, then loop back to Lobby
+        Lobby,
+        Countdown,
+        Racing,
+        Results,
+        Podium
     }
 
-    // --- Tunable durations (seconds). Serialized so you can adjust in the Inspector. ---
     [SerializeField] private float _countdownDuration = 3f;
     [SerializeField] private float _resultsDuration = 5f;
     [SerializeField] private float _podiumDuration = 8f;
 
-    // Build-index of the default lobby scene. Race map indices are chosen by the host
-    // per race (see RequestStartRace). Set these to match your Build Settings order.
-    [SerializeField] private int _lobbySceneIndex = 0;
+    // Finish line position along Z (per-track later; serialized for single-scene testing).
+    [SerializeField] private float _finishZ = 233f;
 
-    // --- Networked state: replicated from host to every client ---
+    //Teleport positions for podium in a scene
+    [Header("Podium")]
+    [SerializeField] private Transform _podium1;      // 1st place spot
+    [SerializeField] private Transform _podium2;      // 2nd place spot
+    [SerializeField] private Transform _podium3;      // 3rd place spot
+    [SerializeField] private Transform _spectatorArea; // where everyone else gathers
+
     [Networked] public RacePhase Phase { get; private set; }
-
-    // Which race map this event uses; set by the host when starting. Lets any client
-    // know the course, and drives the scene load.
-    [Networked] public int RaceSceneIndex { get; private set; }
-
-    // Generic phase timer, reused by Countdown / Results / Podium.
-    // TickTimer is tick-based, so it stays consistent across all peers.
     [Networked] private TickTimer _phaseTimer { get; set; }
-
-    // True once the countdown timer has actually been started (i.e. race scene finished
-    // loading). Prevents the countdown counting down while the scene is still loading.
-    [Networked] private NetworkBool _countdownStarted { get; set; }
-
-    // Set by the host when the race begins; race time = finish tick - RaceStartTick.
     [Networked] public int RaceStartTick { get; private set; }
 
-    // Host-only intent: captured from the lobby UI, consumed by the state machine.
     private bool _startRequested;
-    private int _requestedSceneIndex;
-
     private ChangeDetector _changeDetector;
 
     public override void Spawned()
     {
         _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
-
         if (HasStateAuthority)
             Phase = RacePhase.Lobby;
     }
 
-    private void Update()
-    {
-        // TEMP debug: press O (host only) to start a race on the current scene.
-        if (HasStateAuthority
-            && UnityEngine.InputSystem.Keyboard.current != null
-            && UnityEngine.InputSystem.Keyboard.current.oKey.wasPressedThisFrame)
-        {
-            // Uses the current scene as the "race map" for now, since IsRaceSceneLoaded
-            // is stubbed true and you're not testing real scene-swapping yet.
-            RequestStartRace(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
-        }
-    }
-
-
-    // Called on the host when the lobby UI starts the race, passing the chosen course's
-    // scene build index. The transition still happens inside the state machine next tick.
-    public void RequestStartRace(int raceSceneIndex)
+    // Called on the host when the event is started (e.g. from event setup UI).
+    public void RequestStartRace()
     {
         if (HasStateAuthority)
-        {
             _startRequested = true;
-            _requestedSceneIndex = raceSceneIndex;
-        }
     }
 
     public override void FixedUpdateNetwork()
     {
-        // Only the host advances phases. Clients just read the replicated Phase.
         if (!HasStateAuthority)
             return;
 
@@ -112,23 +87,13 @@ public class RaceManager : NetworkBehaviour
                 break;
 
             case RacePhase.Countdown:
-                // Wait until the race scene has loaded before starting the count.
-                if (!_countdownStarted)
-                {
-                    if (IsRaceSceneLoaded())
-                    {
-                        _phaseTimer = TickTimer.CreateFromSeconds(Runner, _countdownDuration);
-                        _countdownStarted = true;
-                    }
-                }
-                else if (_phaseTimer.Expired(Runner))
-                {
+                if (_phaseTimer.Expired(Runner))
                     EnterRacing();
-                }
                 break;
 
             case RacePhase.Racing:
-                if (AllPlayersFinished())
+                CheckFinishes();
+                if (RaceLogic.AllFinished(Runner))
                     EnterResults();
                 break;
 
@@ -144,19 +109,24 @@ public class RaceManager : NetworkBehaviour
         }
     }
 
-    // --- Transition methods (host-only) ---
+    // --- Transitions (host-only) ---
 
     private void EnterCountdown()
     {
         Phase = RacePhase.Countdown;
-        RaceSceneIndex = _requestedSceneIndex;
-        _countdownStarted = false;           // count starts only after the scene loads
-        _phaseTimer = default;
+        _phaseTimer = TickTimer.CreateFromSeconds(Runner, _countdownDuration);
 
-       // LoadRaceScene(RaceSceneIndex);    //TEMP disabled: single-scene testing
+        // Enrol every player in the session as a participant.
+        foreach (var pref in Runner.ActivePlayers)
+        {
+            if (Runner.TryGetPlayerObject(pref, out var obj) &&
+                obj.TryGetComponent<Player>(out var p))
+            {
+                p.StartRacing();
+            }
+        }
 
-        // TODO: place players at the start line side by side once the scene is loaded.
-        //       Movement lockout needs no push: player input checks Phase == Racing.
+        // TODO (scene loading later): load Race_Event and line players up at the start.
     }
 
     private void EnterRacing()
@@ -170,7 +140,11 @@ public class RaceManager : NetworkBehaviour
         Phase = RacePhase.Results;
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _resultsDuration);
 
-        // TODO: compute final standings from finish ticks; trigger local save on clients.
+        // Winner/standings available via RaceLogic for the Results UI to read.
+        var winner = RaceLogic.Winner(Runner);
+        Debug.Log(winner != null
+            ? $"Race finished. Winner: {winner.Object.InputAuthority}"
+            : "Race finished. No winner recorded.");
     }
 
     private void EnterPodium()
@@ -178,49 +152,82 @@ public class RaceManager : NetworkBehaviour
         Phase = RacePhase.Podium;
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _podiumDuration);
 
-        // TODO: hand top 3 (by finish tick) to the podium presentation.
+        var ranked = RaceLogic.RankParticipants(Runner);
+
+        for (int i = 0; i < ranked.Count; i++)
+        {
+            Player p = ranked[i];
+
+            // Choose podium spot + celebration by placement.
+            Transform spot;
+            Player.CelebrationState celebration;
+
+            if (i == 0) { spot = _podium1; celebration = Player.CelebrationState.First; }
+            else if (i == 1) { spot = _podium2; celebration = Player.CelebrationState.Second; }
+            else if (i == 2) { spot = _podium3; celebration = Player.CelebrationState.Third; }
+            else { spot = _spectatorArea; celebration = Player.CelebrationState.Clapping; }
+
+            // Teleport to the spot (with a small spread for spectators so they don't stack).
+            if (spot != null)
+            {
+                Vector3 pos = spot.position;
+                if (i >= 3)   // spread spectators around the area a little
+                    pos += new Vector3((i - 3) * 1.5f, 0f, 0f);
+                TeleportPlayer(p, pos, spot.forward);
+            }
+
+            p.SetCelebration(celebration);
+        }
+    }
+
+    // Teleport helper (uses the player's NetworkCharacterController).
+    private void TeleportPlayer(Player p, Vector3 position, Vector3 forward)
+    {
+        var cc = p.GetComponent<NetworkCharacterController>();
+        if (cc != null)
+            cc.Teleport(position, Quaternion.LookRotation(forward));
     }
 
     private void EnterLobby()
     {
         Phase = RacePhase.Lobby;
-        _countdownStarted = false;
 
-        // LoadLobbyScene();
+        int index = 0;
+        // Clear race state on all players for the next race.
+        foreach (var pref in Runner.ActivePlayers)
+        {
+            if (Runner.TryGetPlayerObject(pref, out var obj) &&
+                obj.TryGetComponent<Player>(out var p))
+            {
+                p.ResetRace();
+                p.SetCelebration(Player.CelebrationState.None);   // back to normal
 
-        // TODO: reset per-player race state (finish ticks, progress, stumble, ready flags).
+                // Teleport back to a ground-level lobby position so they don't fall off the podium.
+                var cc = p.GetComponent<NetworkCharacterController>();
+                if (cc != null)
+                {
+                    Vector3 lobbyPos = new Vector3(index * 3f, 1.1f, 0f);   // spread along X, on the ground
+                    cc.Teleport(lobbyPos, Quaternion.identity);
+                }
+                index++;
+            }
+        }
+
+        // TODO (scene loading later): return to the lobby scene.
     }
 
-    // --- Scene loading (host-driven via Fusion's scene manager) ---
-
-    private void LoadRaceScene(int sceneIndex)
+    // --- Finish detection: host-authoritative, position-based (per participant) ---
+    private void CheckFinishes()
     {
-        // Host tells Fusion to load the race map for all peers. Fusion replicates the
-        // scene transition; clients follow automatically.
-        Runner.LoadScene(SceneRef.FromIndex(sceneIndex));
-    }
-
-    private void LoadLobbyScene()
-    {
-        Runner.LoadScene(SceneRef.FromIndex(_lobbySceneIndex));
-    }
-
-    // True once the active scene on the host matches the requested race map.
-    private bool IsRaceSceneLoaded()
-    {
-        // TODO: confirm against Fusion's scene state. A simple check is whether the
-        //       runner's current scene matches RaceSceneIndex, e.g. comparing
-        //       Runner.SceneManager's active scene to SceneRef.FromIndex(RaceSceneIndex).
-        //       Stubbed true for now so the countdown proceeds during early testing.
-        return true;
-    }
-
-    // --- Racing -> Results condition ---
-    private bool AllPlayersFinished()
-    {
-        // TODO: return true once every present, connected player has a finish tick
-        //       (or has left). Stubbed false so Racing doesn't auto-advance yet.
-        return false;
+        var participants = RaceLogic.GetParticipants(Runner);
+        foreach (var p in participants)
+        {
+            if (!p.HasFinished && p.transform.position.z >= _finishZ)
+            {
+                Debug.Log("  -> RecordFinish!");
+                p.RecordFinish(Runner.Tick);
+            }
+        }
     }
 
     // --- Local reactions on every client ---
@@ -237,16 +244,19 @@ public class RaceManager : NetworkBehaviour
         }
     }
 
-    // Runs on ALL clients when Phase changes. Local presentation only — no authority.
     private void OnPhaseChanged(RacePhase newPhase)
     {
         Debug.Log($"[RaceManager] Phase -> {newPhase}");
+        // TODO: local UI per phase (countdown overlay, racing HUD, results, podium).
+    }
 
-        // TODO: local view switching per phase:
-        //   Lobby     -> lobby UI (shop/practice available locally)
-        //   Countdown -> play local flyover, then per-player camera + countdown overlay
-        //   Racing    -> racing HUD (or standings if this player already finished)
-        //   Results   -> results screen
-        //   Podium    -> podium screen
+    private void Update()
+    {
+        if (HasStateAuthority
+            && UnityEngine.InputSystem.Keyboard.current != null
+            && UnityEngine.InputSystem.Keyboard.current.oKey.wasPressedThisFrame)
+        {
+            RequestStartRace();
+        }
     }
 }

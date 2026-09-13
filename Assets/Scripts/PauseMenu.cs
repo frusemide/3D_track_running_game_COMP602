@@ -96,6 +96,8 @@ public class PauseMenu : MonoBehaviour
 
     private async void ReturnToMainMenuAsync()
     {
+        GameplayInputBlock.Blocked = false;   // clear the input block when leaving
+
         // Cover the transition.
         if (LoadingScreen.Instance != null)
             LoadingScreen.Instance.Show();

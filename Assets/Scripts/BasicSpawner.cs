@@ -23,6 +23,8 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Start()
     {
+        GameplayInputBlock.Blocked = false;   // ensure a fresh lobby starts unblocked
+
         // The launcher created the runner in the menu scene and it persisted here.
         // Find it and register ourselves as a callback handler so we receive
         // OnPlayerJoined / OnInput / etc. in this scene.
@@ -43,6 +45,7 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
         {
             Vector3 spawnPosition = new Vector3((player.RawEncoded % runner.Config.Simulation.PlayerCount) * 3, 1.1f, 0);
             NetworkObject networkPlayerObject = runner.Spawn(_playerPrefab, spawnPosition, Quaternion.identity, player);
+            runner.SetPlayerObject(player, networkPlayerObject);
             _spawnedCharacters.Add(player, networkPlayerObject);
         }
     }
