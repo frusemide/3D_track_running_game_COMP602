@@ -2145,7 +2145,7 @@ SkinnedMeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 78c44a0662cc6ff4d89f261f2e6f5185, type: 2}
+  - {fileID: 2100000, guid: 287f760e822792b4e9d9dc1513b62458, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2279,6 +2279,7 @@ GameObject:
   - component: {fileID: 6211424177164170952}
   - component: {fileID: 6441540204799985199}
   - component: {fileID: 5316472212503792202}
+  - component: {fileID: 5369340214260326597}
   - component: {fileID: 2697522606296147698}
   m_Layer: 0
   m_Name: Player
@@ -2296,7 +2297,7 @@ Transform:
   m_GameObject: {fileID: 8465537611731112471}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -37.24878, y: 5.04123, z: 37.0729}
+  m_LocalPosition: {x: 0, y: 1.1, z: 2.796}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2324,6 +2325,7 @@ MonoBehaviour:
   - {fileID: 1063073525040925228}
   - {fileID: 6211424177164170952}
   - {fileID: 5316472212503792202}
+  - {fileID: 5369340214260326597}
   ForceRemoteRenderTimeframe: 0
 --- !u!143 &6806018713538926918
 CharacterController:
@@ -2432,6 +2434,36 @@ MonoBehaviour:
   _finishZ: 233
   _State: 0
   _LastTime: 0
+--- !u!114 &5369340214260326597
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8465537611731112471}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2423488c6df2f5d4c8a9a35b3a5bc2e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCustomization
+  _bodyRenderer: {fileID: 7686239469873846498}
+  _colourProperty: _BaseColor
+  _headBone: {fileID: 1175419321428303544}
+  _capPrefab: {fileID: 919132149155446097, guid: 0274b2f2a3bc6674a856393bda5b11b8, type: 3}
+  _glassesPrefab: {fileID: 919132149155446097, guid: 86e0cd9bb67e9954b82e896260f5c66d, type: 3}
+  _sunglassesPrefab: {fileID: 919132149155446097, guid: 41f7d0c11f19abf43aa25cfbfaeb4925, type: 3}
+  _capFit:
+    LocalPosition: {x: 0.003, y: 0.1253, z: 0.0051}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    Scale: 1.35
+  _glassesFit:
+    LocalPosition: {x: 0.0026, y: 0.0762, z: 0.1381}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    Scale: 1.3
+  _sunglassesFit:
+    LocalPosition: {x: 0.0019, y: 0.0615, z: 0.1351}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    Scale: 1.3
 --- !u!54 &2697522606296147698
 Rigidbody:
   m_ObjectHideFlags: 0

@@ -54,6 +54,13 @@ public class RaceManager : NetworkBehaviour
     [Networked] private TickTimer _phaseTimer { get; set; }
     [Networked] public int RaceStartTick { get; private set; }
 
+    // --- Read-only accessors for local presentation (RaceHud etc.) ---
+    // Seconds left in the current phase timer (Countdown/Results/Podium); 0 once expired
+    // or when there's no phase timer running (e.g. during Racing/Lobby).
+    public float PhaseTimeRemaining => _phaseTimer.RemainingTime(Runner) ?? 0f;
+    public float CountdownDuration => _countdownDuration;
+    public float FinishZ => _finishZ;
+
     private bool _startRequested;
     private ChangeDetector _changeDetector;
 
