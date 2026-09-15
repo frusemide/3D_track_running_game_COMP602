@@ -16,6 +16,12 @@ public class ResultsRowView : MonoBehaviour
     [SerializeField] private TMP_Text _nameText;
     [SerializeField] private TMP_Text _timeText;
 
+    [Header("Row colour scheme")]
+    [Tooltip("Name/time text colour on your own row (red background -> white text). Placement badge colour comes from whichever sprite RaceHud passes in, not from here.")]
+    [SerializeField] private Color _localPlayerTextColor = Color.white;
+    [Tooltip("Name/time text colour on opponent rows (white background -> red text).")]
+    [SerializeField] private Color _opponentTextColor = Color.red;
+
     public void Setup(Sprite placementBadge, string playerName, string timeLabel, bool isLocalPlayer)
     {
         if (_placementBadge != null)
@@ -29,5 +35,11 @@ public class ResultsRowView : MonoBehaviour
 
         if (_background != null)
             _background.sprite = isLocalPlayer ? _localPlayerBackground : _normalBackground;
+
+        Color textColor = isLocalPlayer ? _localPlayerTextColor : _opponentTextColor;
+        if (_nameText != null)
+            _nameText.color = textColor;
+        if (_timeText != null)
+            _timeText.color = textColor;
     }
 }

@@ -15,8 +15,20 @@ public class ThirdPersonCamera : MonoBehaviour
     [SerializeField] private Vector3 _targetOffset = new Vector3(0f, 1.5f, 0f); // look at head height, not feet
 
     [Header("Distance & framing")]
-    [SerializeField] private float _distance = 6f;       // fixed follow distance
+    [SerializeField] private float _distance = 6f;       // current follow distance (adjustable via scroll)
     [SerializeField] private float _followLerp = 12f;    // how quickly the pivot catches the target
+
+    [Header("Zoom (mouse scroll wheel)")]
+    [Tooltip("How far scrolling moves _distance per wheel notch. Sign flips zoom direction; raw scroll units vary a bit by platform, so tune this to taste in Play mode.")]
+    [SerializeField] private float _zoomSensitivity = 0.01f;
+    [SerializeField] private float _minDistance = 2f;
+    [SerializeField] private float _maxDistance = 12f;
+
+    [Header("Camera height (- lowers, = raises)")]
+    [Tooltip("Units per second the height offset changes while the key is held.")]
+    [SerializeField] private float _heightAdjustSpeed = 1.5f;
+    [SerializeField] private float _minHeightOffset = 0.5f;
+    [SerializeField] private float _maxHeightOffset = 3f;
 
     [Header("Mouse orbit")]
     [SerializeField] private float _mouseSensitivity = 0.15f;
@@ -48,7 +60,7 @@ public class ThirdPersonCamera : MonoBehaviour
         if (_target == null)
             return;
 
-        // Only read mouse-orbit input when the cursor is locked (not while a menu is open).
+        // Only read camera-control input when the cursor is locked (not while a menu is open).
         if (Cursor.lockState == CursorLockMode.Locked)
         {
             var mouse = Mouse.current;
@@ -58,6 +70,29 @@ public class ThirdPersonCamera : MonoBehaviour
                 _yaw += delta.x * _mouseSensitivity;
                 _pitch -= delta.y * _mouseSensitivity;
                 _pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
+
+                // Zoom: scroll up (positive Y) zooms in (reduces distance).
+                float scroll = mouse.scroll.ReadValue().y;
+                if (scroll != 0f)
+                {
+                    _distance -= scroll * _zoomSensitivity;
+                    _distance = Mathf.Clamp(_distance, _minDistance, _maxDistance);
+                }
+            }
+
+            // Height: "=" raises the camera, "-" lowers it, both held-to-adjust.
+            var keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                float heightInput = 0f;
+                if (keyboard.equalsKey.isPressed) heightInput += 1f;
+                if (keyboard.minusKey.isPressed) heightInput -= 1f;
+
+                if (heightInput != 0f)
+                {
+                    _targetOffset.y += heightInput * _heightAdjustSpeed * Time.deltaTime;
+                    _targetOffset.y = Mathf.Clamp(_targetOffset.y, _minHeightOffset, _maxHeightOffset);
+                }
             }
         }
 

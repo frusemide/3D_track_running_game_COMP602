@@ -55,19 +55,34 @@ public class RaceHud : MonoBehaviour
     [Header("Personal finish banner")]
     [SerializeField] private GameObject _finishBannerRoot;
     [SerializeField] private Image _placementBadge;
-    [Tooltip("Index 0 = 1st (\"Group 17\" in your RaceUI export), 1 = 2nd, 2 = 3rd, 3 = 4th. 5th+ reuses the last sprite.")]
-    [SerializeField] private Sprite[] _placementSprites = new Sprite[4];
+    [Tooltip("RaceUI placement badges. Index 0 = 1st (\"Group 17\") through index 7 = 8th. Shared with the live placement badge below. If fewer than 8 are assigned, placements past the last one reuse it.")]
+    [SerializeField] private Sprite[] _placementSprites = new Sprite[8];
     [Tooltip("Shown only when your placement is 1st.")]
     [SerializeField] private GameObject _crownIcon;
+
+    [Header("Live placement (bottom-right, updates during Racing)")]
+    [Tooltip("Shown only while Phase == Racing. Uses the RaceUI _placementSprites array above.")]
+    [SerializeField] private GameObject _livePlacementRoot;
+    [SerializeField] private Image _livePlacementBadge;
 
     [Header("Results panel")]
     [SerializeField] private GameObject _resultsRoot;
     [SerializeField] private Transform _resultsListContainer;
     [SerializeField] private ResultsRowView _resultsRowPrefab;
+    [Tooltip("ResultsUI placement badges for YOUR OWN row (red background -> white icons). Index 0 = 1st through index 7 = 8th.")]
+    [SerializeField] private Sprite[] _resultsPlacementSpritesSelf = new Sprite[8];
+    [Tooltip("ResultsUI placement badges for OPPONENT rows (white background -> red icons). Index 0 = 1st through index 7 = 8th.")]
+    [SerializeField] private Sprite[] _resultsPlacementSpritesOpponent = new Sprite[8];
 
     [Header("Key legend")]
-    [Tooltip("Static hint bar (Bottom bar / Menu key legend). Left active for the whole race scene -- toggle it yourself if you want it hidden during specific phases.")]
+    [Tooltip("Static hint bar (Bottom bar / Menu key legend).")]
     [SerializeField] private GameObject _keyLegendRoot;
+
+    [Header("Race-only visibility")]
+    [Tooltip("Parent of the track/bar background + TrackStart/TrackEnd/pins. Shown only while a race is in progress (Phase != Lobby).")]
+    [SerializeField] private GameObject _progressBarRoot;
+    [Tooltip("Parent of the timer text + its TimeBox background art. Shown only while a race is in progress (Phase != Lobby).")]
+    [SerializeField] private GameObject _timerRoot;
 
     private RaceManager _raceManager;
     private Player _localPlayer;
@@ -77,9 +92,6 @@ public class RaceHud : MonoBehaviour
     private void Awake()
     {
         _raceManager = FindFirstObjectByType<RaceManager>();
-
-        if (_keyLegendRoot != null)
-            _keyLegendRoot.SetActive(true);
     }
 
     private void Update()
@@ -95,11 +107,32 @@ public class RaceHud : MonoBehaviour
         if (_localPlayer == null)
             _localPlayer = FindLocalPlayer();
 
+        UpdateRaceOnlyVisibility();
         UpdateCountdownBanner();
         UpdateTimer();
         UpdateProgressBar();
         UpdateFinishBanner();
+        UpdateLivePlacement();
         UpdateResultsPanel();
+    }
+
+    // --- Elements that should only be visible while a race is actually happening --
+    // shown during Countdown/Racing, hidden in Lobby and again once the race wraps
+    // up into Results/Podium.
+    private void UpdateRaceOnlyVisibility()
+    {
+        bool inRace = _raceManager.Phase == RaceManager.RacePhase.Countdown
+                   || _raceManager.Phase == RaceManager.RacePhase.Racing;
+
+        SetActiveIfChanged(_progressBarRoot, inRace);
+        SetActiveIfChanged(_timerRoot, inRace);
+        SetActiveIfChanged(_keyLegendRoot, inRace);
+    }
+
+    private static void SetActiveIfChanged(GameObject go, bool active)
+    {
+        if (go != null && go.activeSelf != active)
+            go.SetActive(active);
     }
 
     private static Player FindLocalPlayer()
@@ -124,9 +157,9 @@ public class RaceHud : MonoBehaviour
                 _countdownBannerRoot.SetActive(true);
                 if (_countdownBannerImage != null)
                 {
-                    _countdownBannerImage.sprite = _raceManager.PhaseTimeRemaining > _readyThresholdSeconds
+                    SetCountdownSprite(_raceManager.PhaseTimeRemaining > _readyThresholdSeconds
                         ? _readySprite
-                        : _setSprite;
+                        : _setSprite);
                 }
                 break;
 
@@ -135,13 +168,24 @@ public class RaceHud : MonoBehaviour
                 bool showGo = sinceStart <= _goDisplaySeconds;
                 _countdownBannerRoot.SetActive(showGo);
                 if (showGo && _countdownBannerImage != null)
-                    _countdownBannerImage.sprite = _goSprite;
+                    SetCountdownSprite(_goSprite);
                 break;
 
             default:
                 _countdownBannerRoot.SetActive(false);
                 break;
         }
+    }
+
+    // Swaps the countdown banner's sprite and resizes the Image to that sprite's own
+    // native dimensions, so Ready/Set/GO! each display at their correct size instead of
+    // being stretched to whatever size the RectTransform happened to start at. Skips the
+    // resize when the sprite hasn't actually changed, since this runs every frame.
+    private void SetCountdownSprite(Sprite sprite)
+    {
+        if (_countdownBannerImage.sprite == sprite) return;
+        _countdownBannerImage.sprite = sprite;
+        _countdownBannerImage.SetNativeSize();
     }
 
     // --- Timer ---
@@ -233,7 +277,7 @@ public class RaceHud : MonoBehaviour
         if (!show) return;
 
         int placement = RaceLogic.RankParticipants(_raceManager.Runner).IndexOf(_localPlayer); // 0-based
-        Sprite badge = PlacementSprite(placement);
+        Sprite badge = PlacementSprite(_placementSprites, placement);
 
         if (_placementBadge != null)
             _placementBadge.sprite = badge;
@@ -242,11 +286,30 @@ public class RaceHud : MonoBehaviour
             _crownIcon.SetActive(placement == 0);
     }
 
-    private Sprite PlacementSprite(int zeroBasedPlacement)
+    // Shared clamp-to-last-assigned lookup, used against whichever sprite set (RaceUI or
+    // ResultsUI) the caller is drawing from.
+    private static Sprite PlacementSprite(Sprite[] sprites, int zeroBasedPlacement)
     {
-        if (_placementSprites.Length == 0) return null;
-        int index = Mathf.Clamp(zeroBasedPlacement, 0, _placementSprites.Length - 1);
-        return _placementSprites[index];
+        if (sprites == null || sprites.Length == 0) return null;
+        int index = Mathf.Clamp(zeroBasedPlacement, 0, sprites.Length - 1);
+        return sprites[index];
+    }
+
+    // --- Live placement badge (bottom-right, updates every frame during Racing) ---
+
+    private void UpdateLivePlacement()
+    {
+        if (_livePlacementRoot == null) return;
+
+        bool show = _localPlayer != null && _raceManager.Phase == RaceManager.RacePhase.Racing;
+        _livePlacementRoot.SetActive(show);
+        if (!show) return;
+
+        int placement = RaceLogic.RankParticipants(_raceManager.Runner).IndexOf(_localPlayer); // 0-based
+        if (placement < 0) return;
+
+        if (_livePlacementBadge != null)
+            _livePlacementBadge.sprite = PlacementSprite(_placementSprites, placement);
     }
 
     // --- Results panel ---
@@ -289,8 +352,9 @@ public class RaceHud : MonoBehaviour
             string name = isSelf ? "You" : $"Player {joinOrder.IndexOf(p) + 1}";
             string time = p.HasFinished ? FormatTime(TickSeconds(p.FinishTick)) : "--:--.---";
 
+            var placementSprites = isSelf ? _resultsPlacementSpritesSelf : _resultsPlacementSpritesOpponent;
             var row = Instantiate(_resultsRowPrefab, _resultsListContainer);
-            row.Setup(PlacementSprite(i), name, time, isSelf);
+            row.Setup(PlacementSprite(placementSprites, i), name, time, isSelf);
             _spawnedRows.Add(row);
         }
     }

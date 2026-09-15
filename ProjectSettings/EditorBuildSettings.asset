@@ -12,7 +12,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Gathering_Lobby.unity
     guid: 83c8293dc7f58af499b4e87e93762f7d
   - enabled: 1
-    path: Assets/Scenes/Race_Event.unity
+    path: Assets/Scenes/Race_Event1.unity
     guid: dabd404cd2907eb4d8d072d75077c917
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
