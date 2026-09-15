@@ -58,6 +58,7 @@ public class PlayerCustomisation : NetworkBehaviour
 
     [Networked] private int BodyColourIndex { get; set; }
     [Networked] private CustomisationCatalogue.HeadAccessory Accessory { get; set; }
+    [Networked] private NetworkBool RainbowMode { get; set; }
 
     private MaterialPropertyBlock _propBlock;
     private GameObject _currentAccessoryInstance;
@@ -81,14 +82,25 @@ public class PlayerCustomisation : NetworkBehaviour
     public void SetBodyColour(int index)
     {
         if (!HasStateAuthority) return;
+
+        RainbowMode = false;
         BodyColourIndex = Mathf.Clamp(index, 0, CustomisationCatalogue.BodyColours.Length - 1);
     }
 
     public void SetAccessory(CustomisationCatalogue.HeadAccessory accessory)
     {
         if (!HasStateAuthority) return;
+
         Accessory = accessory;
     }
+
+    public void SetRainbowMode(bool enabled)
+    {
+        if (!HasStateAuthority) return;
+
+        RainbowMode = enabled;
+    }
+
 
     // --- React to networked changes on every client ---
     public override void Render()
@@ -98,12 +110,24 @@ public class PlayerCustomisation : NetworkBehaviour
             switch (change)
             {
                 case nameof(BodyColourIndex):
-                    ApplyColour(BodyColourIndex);
+                    if (!RainbowMode)
+                        ApplyColour(BodyColourIndex);
                     break;
+
                 case nameof(Accessory):
                     ApplyAccessory(Accessory);
                     break;
+
+                case nameof(RainbowMode):
+                    if (!RainbowMode)
+                        ApplyColour(BodyColourIndex);
+                    break;
             }
+        }
+
+        if (RainbowMode)
+        {
+            ApplyRainbowColour();
         }
     }
 
@@ -127,6 +151,9 @@ public class PlayerCustomisation : NetworkBehaviour
 
         if (kb.digit5Key.wasPressedThisFrame)
             SetBodyColour((BodyColourIndex + 1) % CustomisationCatalogue.BodyColours.Length);
+
+        if (kb.leftShiftKey.isPressed && kb.digit7Key.wasPressedThisFrame)
+            SetRainbowMode(!RainbowMode);
     }
 
     // --- Local visual application ---
@@ -137,6 +164,18 @@ public class PlayerCustomisation : NetworkBehaviour
 
         _bodyRenderer.GetPropertyBlock(_propBlock);
         _propBlock.SetColor(_colourProperty, CustomisationCatalogue.GetColour(index));
+        _bodyRenderer.SetPropertyBlock(_propBlock);
+    }
+
+    private void ApplyRainbowColour()
+    {
+        if (_bodyRenderer == null) return;
+
+        float hue = (Time.time * 0.25f) % 1f;
+        Color rainbowColour = Color.HSVToRGB(hue, 1f, 1f);
+
+        _bodyRenderer.GetPropertyBlock(_propBlock);
+        _propBlock.SetColor(_colourProperty, rainbowColour);
         _bodyRenderer.SetPropertyBlock(_propBlock);
     }
 

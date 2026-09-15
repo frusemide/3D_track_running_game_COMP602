@@ -31,10 +31,13 @@ public class GameLauncher : MonoBehaviour
             LoadingScreen.Instance.Show();
 
         _runner = gameObject.AddComponent<NetworkRunner>();
+        _runner.name = $"NetworkRunner_{mode}";
         _runner.ProvideInput = true;
 
         var scene = SceneRef.FromIndex(_lobbySceneIndex);
+
         var sceneInfo = new NetworkSceneInfo();
+
         if (scene.IsValid)
             sceneInfo.AddSceneRef(scene, LoadSceneMode.Single);
 
@@ -49,18 +52,21 @@ public class GameLauncher : MonoBehaviour
         if (!result.Ok)
         {
             Debug.LogError($"StartGame failed: {result.ShutdownReason}");
+
             Destroy(_runner);
             _runner = null;
+
             if (LoadingScreen.Instance != null)
                 LoadingScreen.Instance.Hide();
+
             return;
         }
 
-        // Wait until the lobby is the active scene and has rendered, then uncover.
-        while (SceneManager.GetActiveScene().buildIndex != _lobbySceneIndex)
-            await System.Threading.Tasks.Task.Yield();
-            await System.Threading.Tasks.Task.Yield();
-            await System.Threading.Tasks.Task.Yield();
+        // Fusion has successfully started the session and is responsible for
+        // loading the network scene. Give Unity a few frames to finish rendering.
+        await System.Threading.Tasks.Task.Yield();
+        await System.Threading.Tasks.Task.Yield();
+        await System.Threading.Tasks.Task.Yield();
 
         if (LoadingScreen.Instance != null)
             LoadingScreen.Instance.Hide();

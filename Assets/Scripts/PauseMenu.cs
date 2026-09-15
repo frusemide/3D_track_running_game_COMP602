@@ -15,6 +15,8 @@ public class PauseMenu : MonoBehaviour
 {
     [SerializeField] private GameObject _menuPanel;      // the overlay panel (starts hidden)
     [SerializeField] private int _mainMenuSceneIndex = 0;
+    [SerializeField] private GameObject _settingsPanel;
+    [SerializeField] private GameObject _pauseButtons;
 
     private bool _isOpen;
 
@@ -79,11 +81,26 @@ public class PauseMenu : MonoBehaviour
         Debug.Log("Shop: not yet implemented");
     }
 
-    // Wired to the Settings button.
     public void OpenSettings()
     {
-        // TODO: open the settings UI (audio, display, controls) -- shared with main menu.
-        Debug.Log("Settings: not yet implemented");
+        if (_pauseButtons != null)
+            _pauseButtons.SetActive(false);
+
+        if (_settingsPanel != null)
+            _settingsPanel.SetActive(true);
+
+        GameplayInputBlock.Blocked = true;
+    }
+
+    public void CloseSettings()
+    {
+        if (_settingsPanel != null)
+            _settingsPanel.SetActive(false);
+
+        if (_pauseButtons != null)
+            _pauseButtons.SetActive(true);
+
+        GameplayInputBlock.Blocked = true;
     }
 
     // --- Return to main menu (functional) ---
