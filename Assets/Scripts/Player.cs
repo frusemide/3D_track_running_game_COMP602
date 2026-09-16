@@ -49,7 +49,7 @@ public class Player : NetworkBehaviour
     [SerializeField] private float _sprintSpeed = 10f;   // held-shift movement speed
 
     private NetworkCharacterController _cc;
-    private Vector3 _forward = Vector3.forward;
+    [Networked] private Vector3 _forward { get; set; }
     private RaceManager _raceManager;
     private Animator _animator;
     private PracticeController _practice;
@@ -82,6 +82,9 @@ public class Player : NetworkBehaviour
         _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
         _animator = GetComponentInChildren<Animator>();
         _cc.maxSpeed = 100f;
+
+        if (HasStateAuthority)
+            _forward = Vector3.forward;   // networked default; was previously a field initializer
 
         //Camera only set for local player
         if (Object.HasInputAuthority)
@@ -288,6 +291,7 @@ public class Player : NetworkBehaviour
 
     public void SetForward(Vector3 forward)
     {
+        if (!HasStateAuthority) return;
         _forward = forward.normalized;
     }
 

@@ -73,6 +73,12 @@ public class RaceConsolePanel : MonoBehaviour
         if (_root != null)
             _root.SetActive(false);
 
+        // Explicitly hide these too, in case they aren't nested under _root in the Hierarchy.
+        if (_hostControls != null)
+            _hostControls.SetActive(false);
+        if (_hostOnlyNotice != null)
+            _hostOnlyNotice.SetActive(false);
+
         _isOpen = false;
 
         // Re-lock for gameplay camera control.
