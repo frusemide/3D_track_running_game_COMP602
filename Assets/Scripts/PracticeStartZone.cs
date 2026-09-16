@@ -8,7 +8,6 @@ using UnityEngine;
 // GameObject here). If none is set, the zone's own transform is used.
 public class PracticeStartZone : MonoBehaviour, IInteractable
 {
-    [Tooltip("Where the player is placed to begin the dash. If empty, uses this object's transform.")]
     [SerializeField] private Transform _startPoint;
 
     public string GetPrompt()

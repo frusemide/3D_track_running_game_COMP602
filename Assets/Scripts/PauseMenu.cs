@@ -29,9 +29,14 @@ public class PauseMenu : MonoBehaviour
     {
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            Debug.Log("Escape pressed");
-            if (_isOpen) Resume();
-            else Open();
+            if (_isOpen)
+            {
+                Resume();
+            }
+            else if (!GameplayInputBlock.Blocked)
+            {
+                Open();
+            }
         }
     }
 

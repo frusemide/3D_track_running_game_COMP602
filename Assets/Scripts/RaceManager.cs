@@ -30,6 +30,7 @@ public class RaceManager : NetworkBehaviour
     public enum RacePhase
     {
         Lobby,
+        Positioning,
         Countdown,
         Racing,
         Results,
@@ -37,6 +38,7 @@ public class RaceManager : NetworkBehaviour
     }
 
     [SerializeField] private float _countdownDuration = 3f;
+    [SerializeField] private float _positioningDuration = 3f; // time to get bearings before the countdown starts
     [SerializeField] private float _resultsDuration = 5f;
     [SerializeField] private float _podiumDuration = 8f;
 
@@ -53,10 +55,13 @@ public class RaceManager : NetworkBehaviour
     [SerializeField] private Transform _podium2;      // 2nd place spot
     [SerializeField] private Transform _podium3;      // 3rd place spot
     [SerializeField] private Transform _spectatorArea; // where everyone else gathers
+    [SerializeField] private RaceStartNoticeBanner _startNoticeBanner; // image notice that race is about to start
+    [SerializeField] private float _startNoticeDuration = 2.5f; // duration start notice is shown
 
     [Networked] public RacePhase Phase { get; private set; }
     [Networked] private TickTimer _phaseTimer { get; set; }
     [Networked] public int RaceStartTick { get; private set; }
+    [Networked] private TickTimer _startNoticeTimer { get; set; }
 
     // --- Read-only accessors for local presentation (RaceHud etc.) ---
     // Seconds left in the current phase timer (Countdown/Results/Podium); 0 once expired
@@ -64,9 +69,8 @@ public class RaceManager : NetworkBehaviour
     public float PhaseTimeRemaining => _phaseTimer.RemainingTime(Runner) ?? 0f;
     public float CountdownDuration => _countdownDuration;
     public float FinishZ => _finishZ;
-
-    private bool _startRequested;
     private ChangeDetector _changeDetector;
+
 
     public override void Spawned()
     {
@@ -75,11 +79,20 @@ public class RaceManager : NetworkBehaviour
             Phase = RacePhase.Lobby;
     }
 
-    // Called on the host when the event is started (e.g. from event setup UI).
+    // Called on the host when the event is started (e.g. from the console UI).
     public void RequestStartRace()
     {
-        if (HasStateAuthority)
-            _startRequested = true;
+        if (!HasStateAuthority) return;
+        _startNoticeTimer = TickTimer.CreateFromSeconds(Runner, _startNoticeDuration);
+        RPC_NotifyStarting(_startNoticeDuration);
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_NotifyStarting(float duration)
+    {
+        var banner = FindFirstObjectByType<RaceStartNoticeBanner>();
+        if (banner != null)
+            banner.Show(duration);
     }
 
     public override void FixedUpdateNetwork()
@@ -90,11 +103,15 @@ public class RaceManager : NetworkBehaviour
         switch (Phase)
         {
             case RacePhase.Lobby:
-                if (_startRequested)
+                if (_startNoticeTimer.IsRunning && _startNoticeTimer.Expired(Runner))
                 {
-                    _startRequested = false;
-                    EnterCountdown();
+                    EnterPositioning();
                 }
+                break;
+
+            case RacePhase.Positioning:
+                if (_phaseTimer.Expired(Runner))
+                    EnterCountdown();
                 break;
 
             case RacePhase.Countdown:
@@ -122,10 +139,10 @@ public class RaceManager : NetworkBehaviour
 
     // --- Transitions (host-only) ---
 
-    private void EnterCountdown()
+    private void EnterPositioning()
     {
-        Phase = RacePhase.Countdown;
-        _phaseTimer = TickTimer.CreateFromSeconds(Runner, _countdownDuration);
+        Phase = RacePhase.Positioning;
+        _phaseTimer = TickTimer.CreateFromSeconds(Runner, _positioningDuration);
 
         // Enrol every player in the session as a participant and line them up at the
         // start, in join order, so everyone begins the same distance from the finish
@@ -154,6 +171,12 @@ public class RaceManager : NetworkBehaviour
 
         // TODO (scene loading later): load Race_Event -- start line spots above will need
         // to live in that scene too once this moves off the single testing scene.
+    }
+
+    private void EnterCountdown()
+    {
+        Phase = RacePhase.Countdown;
+        _phaseTimer = TickTimer.CreateFromSeconds(Runner, _countdownDuration);
     }
 
     private void EnterRacing()
@@ -218,6 +241,7 @@ public class RaceManager : NetworkBehaviour
     private void EnterLobby()
     {
         Phase = RacePhase.Lobby;
+        _startNoticeTimer = TickTimer.None;
 
         int index = 0;
         // Clear race state on all players for the next race.

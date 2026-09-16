@@ -82,7 +82,7 @@ public class PlayerInteractor : MonoBehaviour
         if (!string.IsNullOrEmpty(prompt))
         {
             var style = new GUIStyle(GUI.skin.box) { fontSize = 18 };
-            GUI.Box(new Rect(Screen.width / 2f - 150, Screen.height - 80, 300, 40), prompt, style);
+            GUI.Box(new Rect(Screen.width / 2f - 150, Screen.height - 120, 300, 40), prompt, style);
         }
     }
 }

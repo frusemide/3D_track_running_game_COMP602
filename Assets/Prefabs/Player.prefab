@@ -2412,9 +2412,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 413110ba9bcbe1340aa200cac2c92315, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerInteractor
-  _castDistance: 2.5
+  _castDistance: 1.5
   _castRadius: 0.5
-  _originHeight: 1
+  _originHeight: 0.4
   _interactableMask:
     serializedVersion: 2
     m_Bits: 64
