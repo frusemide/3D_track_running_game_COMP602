@@ -155,20 +155,17 @@ public class RaceHud : MonoBehaviour
         {
             case RaceManager.RacePhase.Countdown:
                 _countdownBannerRoot.SetActive(true);
-                if (_countdownBannerImage != null)
-                {
-                    SetCountdownSprite(_raceManager.PhaseTimeRemaining > _readyThresholdSeconds
-                        ? _readySprite
-                        : _setSprite);
-                }
+                SetSpriteNativeSize(_countdownBannerImage, _raceManager.PhaseTimeRemaining > _readyThresholdSeconds
+                    ? _readySprite
+                    : _setSprite);
                 break;
 
             case RaceManager.RacePhase.Racing:
                 float sinceStart = TickSeconds(_raceManager.Runner.Tick);
                 bool showGo = sinceStart <= _goDisplaySeconds;
                 _countdownBannerRoot.SetActive(showGo);
-                if (showGo && _countdownBannerImage != null)
-                    SetCountdownSprite(_goSprite);
+                if (showGo)
+                    SetSpriteNativeSize(_countdownBannerImage, _goSprite);
                 break;
 
             default:
@@ -177,15 +174,16 @@ public class RaceHud : MonoBehaviour
         }
     }
 
-    // Swaps the countdown banner's sprite and resizes the Image to that sprite's own
-    // native dimensions, so Ready/Set/GO! each display at their correct size instead of
-    // being stretched to whatever size the RectTransform happened to start at. Skips the
-    // resize when the sprite hasn't actually changed, since this runs every frame.
-    private void SetCountdownSprite(Sprite sprite)
+    // Swaps an Image's sprite and resizes it to that sprite's own native dimensions, so
+    // differently-sized sprites sharing one Image slot (countdown banner, placement
+    // badges) each display at their correct size instead of being stretched to whatever
+    // size the RectTransform happened to start at. Skips the resize when the sprite
+    // hasn't actually changed, since callers run this every frame.
+    private static void SetSpriteNativeSize(Image image, Sprite sprite)
     {
-        if (_countdownBannerImage.sprite == sprite) return;
-        _countdownBannerImage.sprite = sprite;
-        _countdownBannerImage.SetNativeSize();
+        if (image == null || image.sprite == sprite) return;
+        image.sprite = sprite;
+        image.SetNativeSize();
     }
 
     // --- Timer ---
@@ -277,10 +275,7 @@ public class RaceHud : MonoBehaviour
         if (!show) return;
 
         int placement = RaceLogic.RankParticipants(_raceManager.Runner).IndexOf(_localPlayer); // 0-based
-        Sprite badge = PlacementSprite(_placementSprites, placement);
-
-        if (_placementBadge != null)
-            _placementBadge.sprite = badge;
+        SetSpriteNativeSize(_placementBadge, PlacementSprite(_placementSprites, placement));
 
         if (_crownIcon != null)
             _crownIcon.SetActive(placement == 0);
@@ -308,8 +303,7 @@ public class RaceHud : MonoBehaviour
         int placement = RaceLogic.RankParticipants(_raceManager.Runner).IndexOf(_localPlayer); // 0-based
         if (placement < 0) return;
 
-        if (_livePlacementBadge != null)
-            _livePlacementBadge.sprite = PlacementSprite(_placementSprites, placement);
+        SetSpriteNativeSize(_livePlacementBadge, PlacementSprite(_placementSprites, placement));
     }
 
     // --- Results panel ---

@@ -43,6 +43,10 @@ public class RaceManager : NetworkBehaviour
     // Finish line position along Z (per-track later; serialized for single-scene testing).
     [SerializeField] private float _finishZ = 233f;
 
+    [Header("Start line")]
+    [Tooltip("Fixed spawn spots players are teleported to the moment Countdown begins, so everyone starts equidistant from the finish line and facing the correct direction -- movement here can't turn (2-pedal input only), so facing has to be set for them. Assign one Transform per expected player slot, up to 8; participants are matched to slots by join order. Unassigned/extra slots are simply skipped.")]
+    [SerializeField] private Transform[] _startLineSpots = new Transform[8];
+
     //Teleport positions for podium in a scene
     [Header("Podium")]
     [SerializeField] private Transform _podium1;      // 1st place spot
@@ -123,17 +127,33 @@ public class RaceManager : NetworkBehaviour
         Phase = RacePhase.Countdown;
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _countdownDuration);
 
-        // Enrol every player in the session as a participant.
+        // Enrol every player in the session as a participant and line them up at the
+        // start, in join order, so everyone begins the same distance from the finish
+        // line and facing the correct direction.
+        int index = 0;
         foreach (var pref in Runner.ActivePlayers)
         {
             if (Runner.TryGetPlayerObject(pref, out var obj) &&
                 obj.TryGetComponent<Player>(out var p))
             {
                 p.StartRacing();
+
+                if (_startLineSpots != null && index < _startLineSpots.Length && _startLineSpots[index] != null)
+                {
+                    Transform spot = _startLineSpots[index];
+                    TeleportPlayer(p, spot.position, spot.forward);
+                    // Teleport only updates the visual transform.rotation -- two-key racing
+                    // moves along a separate _forward field on Player, so it has to be told
+                    // about the new facing directly too (same fix PracticeController uses).
+                    p.SetForward(spot.forward);
+                }
+
+                index++;
             }
         }
 
-        // TODO (scene loading later): load Race_Event and line players up at the start.
+        // TODO (scene loading later): load Race_Event -- start line spots above will need
+        // to live in that scene too once this moves off the single testing scene.
     }
 
     private void EnterRacing()

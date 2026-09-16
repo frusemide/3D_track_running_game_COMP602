@@ -25,7 +25,13 @@ public class ResultsRowView : MonoBehaviour
     public void Setup(Sprite placementBadge, string playerName, string timeLabel, bool isLocalPlayer)
     {
         if (_placementBadge != null)
+        {
             _placementBadge.sprite = placementBadge;
+            // Resize to the badge sprite's own dimensions -- 1st through 8th can each be a
+            // different size, so a single fixed box would stretch/squash whichever doesn't
+            // match its original RectTransform size.
+            _placementBadge.SetNativeSize();
+        }
 
         if (_nameText != null)
             _nameText.text = playerName;
