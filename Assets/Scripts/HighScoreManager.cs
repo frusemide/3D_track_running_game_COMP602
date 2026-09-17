@@ -7,71 +7,104 @@ public class HighScoreManager : MonoBehaviour
     private GameObject highScorePopup;
 
     private float previousHighScore;
-    private PracticeController practiceController;
-    private PracticeController.PracticeState previousState;
+
+    private RaceManager raceManager;
+    private RaceManager.RacePhase previousPhase;
+
+    private bool phaseInitialized;
+    private bool scoreChecked;
 
     void Start()
     {
         previousHighScore = PlayerPrefs.GetFloat("HighScore", 999f);
+
         highScorePopup.SetActive(false);
     }
 
     void Update()
     {
-        // Find the local player's PracticeController
-        if (practiceController == null)
+        // Find the RaceManager in the current scene.
+        if (raceManager == null)
         {
-            NetworkRunner runner = FindFirstObjectByType<NetworkRunner>();
-
-            if (runner == null || runner.LocalPlayer == PlayerRef.None)
-                return;
-
-            if (runner.TryGetPlayerObject(runner.LocalPlayer, out var playerObject))
-            {
-                practiceController = playerObject.GetComponent<PracticeController>();
-
-                if (practiceController != null)
-                {
-                    previousState = practiceController.State;
-                }
-            }
-
+            raceManager = FindFirstObjectByType<RaceManager>();
             return;
         }
 
-        // Only react when the practice state changes
-        if (practiceController.State != previousState)
+        // A NetworkBehaviour cannot safely use its networked
+        // properties until Fusion has spawned it.
+        if (raceManager.Object == null)
         {
-            // New race starting - hide the old popup
-            if (practiceController.State == PracticeController.PracticeState.Countdown)
-            {
-                highScorePopup.SetActive(false);
-            }
-
-            // Race has just finished
-            if (practiceController.State == PracticeController.PracticeState.Finished)
-            {
-                CheckHighScore();
-            }
-
-            previousState = practiceController.State;
+            return;
         }
+
+        // Remember the phase we started on.
+        if (phaseInitialized == false)
+        {
+            previousPhase = raceManager.Phase;
+            phaseInitialized = true;
+            return;
+        }
+
+        // Nothing changed, so there is nothing to check.
+        if (raceManager.Phase == previousPhase)
+        {
+            return;
+        }
+
+        // A new race has started.
+        if (raceManager.Phase == RaceManager.RacePhase.Racing
+            || raceManager.Phase == RaceManager.RacePhase.Podium
+            || raceManager.Phase == RaceManager.RacePhase.Lobby)
+        {
+            scoreChecked = false;
+            highScorePopup.SetActive(false);
+        }
+
+        // The race has just reached the results phase.
+        if (raceManager.Phase == RaceManager.RacePhase.Results
+            && scoreChecked == false)
+        {
+            CheckHighScore();
+        }
+
+        previousPhase = raceManager.Phase;
     }
 
     private void CheckHighScore()
     {
-        float finishTime = practiceController.LastTime;
+        NetworkRunner runner = raceManager.Runner;
 
-        if (finishTime < previousHighScore)
+        if (runner == null)
         {
-            previousHighScore = finishTime;
+            return;
+        }
 
-            PlayerPrefs.SetFloat("HighScore", finishTime);
-            PlayerPrefs.Save();
+        PlayerRef localPlayer = runner.LocalPlayer;
 
-            highScorePopup.SetActive(true);
+        if (runner.TryGetPlayerObject(localPlayer, out var playerObject))
+        {
+            if (playerObject.TryGetComponent<Player>(out var player))
+            {
+                if (player.HasFinished)
+                {
+                    scoreChecked = true;
 
-            Debug.Log($"NEW HIGH SCORE! {finishTime:F2}s");
+                    int raceTicks = player.FinishTick - raceManager.RaceStartTick;
+                    float finishTime = raceTicks * runner.DeltaTime;
+
+                    if (finishTime < previousHighScore)
+                    {
+                        previousHighScore = finishTime;
+
+                        PlayerPrefs.SetFloat("HighScore", finishTime);
+                        PlayerPrefs.Save();
+
+                        highScorePopup.SetActive(true);
+
+                        Debug.Log($"NEW HIGH SCORE! {finishTime:F2}s");
+                    }
+                }
+            }
         }
     }
 }
