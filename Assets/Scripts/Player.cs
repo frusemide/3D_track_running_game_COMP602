@@ -9,7 +9,6 @@ using UnityEngine;
 // alternation up to a ceiling and decays when alternation slows (Sprinter-like). A stumble
 // (same pedal twice, or a pedal press during recovery) triggers a controlled decelerating
 // glide to a stop, then a recovery lockout.
-
 public class Player : NetworkBehaviour
 {
     private enum MovementMode
@@ -53,7 +52,7 @@ public class Player : NetworkBehaviour
     [SerializeField] private float _tooSlowStepInterval = 0.7f;
 
     private NetworkCharacterController _cc;
-    private Vector3 _forward = Vector3.forward;
+    [Networked] private Vector3 _forward { get; set; }
     private RaceManager _raceManager;
     private Animator _animator;
     private PracticeController _practice;
@@ -69,7 +68,7 @@ public class Player : NetworkBehaviour
     [Networked] private TickTimer _stepTimer { get; set; }
     // Recovery lockout timer after a stumble.
     [Networked] private TickTimer _recoverTimer { get; set; }
-   // --- Race participation (Option 3: per-player race state) ---
+    // --- Race participation (Option 3: per-player race state) ---
     [Networked] public NetworkBool IsRacing { get; set; }     // in the current race?
     [Networked] public NetworkBool HasFinished { get; set; }  // crossed the finish line?
     [Networked] public int FinishTick { get; set; }           // tick when finished (for ranking/time)// --- Race participation (Option 3: per-player race state) ---
@@ -87,6 +86,9 @@ public class Player : NetworkBehaviour
         _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
         _animator = GetComponentInChildren<Animator>();
         _cc.maxSpeed = 100f;
+
+        if (HasStateAuthority)
+            _forward = Vector3.forward;   // networked default; was previously a field initializer
 
         //Camera only set for local player
         if (Object.HasInputAuthority)
@@ -321,6 +323,7 @@ public class Player : NetworkBehaviour
 
     public void SetForward(Vector3 forward)
     {
+        if (!HasStateAuthority) return;
         _forward = forward.normalized;
     }
 

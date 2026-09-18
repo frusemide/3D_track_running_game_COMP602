@@ -6,8 +6,8 @@ using Fusion;
 // Gathering lobby pause/overlay menu. Toggled with Escape. Lives in the lobby scene.
 //
 // In multiplayer, this doesn't truly "pause" (other players keep playing) -- it's an
-// overlay of options. Resume and Return to Main Menu are functional; Event Setup, Shop,
-// and Settings are scaffolded stubs to fill in when those systems are built.
+// overlay of options. Resume, Return to Main Menu, and Settings are functional; Event
+// Setup and Shop are scaffolded stubs to fill in when those systems are built.
 //
 // Return to Main Menu shuts down the Fusion session cleanly, destroys the persistent
 // launcher (clean slate), and loads the menu -- using the shared LoadingScreen to cover it.
@@ -31,9 +31,14 @@ public class PauseMenu : MonoBehaviour
     {
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            Debug.Log("Escape pressed");
-            if (_isOpen) Resume();
-            else Open();
+            if (_isOpen)
+            {
+                Resume();
+            }
+            else if (!GameplayInputBlock.Blocked)
+            {
+                Open();
+            }
         }
     }
 
@@ -81,6 +86,9 @@ public class PauseMenu : MonoBehaviour
         Debug.Log("Shop: not yet implemented");
     }
 
+    // --- Settings (functional) ---
+
+    // Wired to the Settings button.
     public void OpenSettings()
     {
         if (_pauseButtons != null)
@@ -92,6 +100,7 @@ public class PauseMenu : MonoBehaviour
         GameplayInputBlock.Blocked = true;
     }
 
+    // Wired to the settings panel's back/close button.
     public void CloseSettings()
     {
         if (_settingsPanel != null)
@@ -100,7 +109,7 @@ public class PauseMenu : MonoBehaviour
         if (_pauseButtons != null)
             _pauseButtons.SetActive(true);
 
-        GameplayInputBlock.Blocked = true;
+        GameplayInputBlock.Blocked = true;   // still paused, just back on the main pause buttons
     }
 
     // --- Return to main menu (functional) ---
