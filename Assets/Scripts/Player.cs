@@ -47,6 +47,9 @@ public class Player : NetworkBehaviour
     [SerializeField] private float _slideDecelRate = 1.5f; //fraction of slide speed lost per second
     [SerializeField] private float _turnSpeed = 12f;   // how quickly the character turns to face input direction
     [SerializeField] private float _sprintSpeed = 10f;   // held-shift movement speed
+    [SerializeField] private float _idealStepInterval = 0.35f;
+    [SerializeField] private float _tooFastStepInterval = 0.18f;
+    [SerializeField] private float _tooSlowStepInterval = 0.7f;
 
     private NetworkCharacterController _cc;
     [Networked] private Vector3 _forward { get; set; }
@@ -62,9 +65,10 @@ public class Player : NetworkBehaviour
     [Networked] public StumbleState RunState { get; set; }
     // 0 = none yet, 1 = pedal A, 2 = pedal B. Which pedal was last accepted, for alternation.
     [Networked] private byte _lastPedal { get; set; }
+    [Networked] private TickTimer _stepTimer { get; set; }
     // Recovery lockout timer after a stumble.
     [Networked] private TickTimer _recoverTimer { get; set; }
-   // --- Race participation (Option 3: per-player race state) ---
+    // --- Race participation (Option 3: per-player race state) ---
     [Networked] public NetworkBool IsRacing { get; set; }     // in the current race?
     [Networked] public NetworkBool HasFinished { get; set; }  // crossed the finish line?
     [Networked] public int FinishTick { get; set; }           // tick when finished (for ranking/time)// --- Race participation (Option 3: per-player race state) ---
@@ -186,6 +190,11 @@ public class Player : NetworkBehaviour
                 // Passive decay every tick: stop hammering and you bleed speed.
                 Speed = Mathf.Max(0f, Speed - _speedDecayPerSecond * dt);
 
+                if (!_stepTimer.IsRunning)
+                {
+                    _stepTimer = TickTimer.CreateFromSeconds(Runner, _idealStepInterval);
+                }
+
                 // Only accept pedals if still racing (not yet finished). Finished players coast.
                 if (!HasFinished && (pedalA || pedalB))
                 {
@@ -203,10 +212,33 @@ public class Player : NetworkBehaviour
                     }
                     else
                     {
-                        // Valid alternation: accelerate, with diminishing returns near top speed.
-                        float headroom = 1f - (Speed / _topSpeed);   // 1 at rest, 0 at top speed
-                        Speed = Mathf.Min(_topSpeed, Speed + _accelPerAlternation * headroom);
-                        _lastPedal = pressed;
+                        float stepInterval = _stepTimer.RemainingTime(Runner) ?? _tooSlowStepInterval;
+                        stepInterval = _tooSlowStepInterval - stepInterval;
+
+                        if (stepInterval < _tooFastStepInterval)
+                        {
+                            // Pedal came down too quickly = stumble.
+                            BeginStumble();
+                        }
+                        else
+                        {
+                            // Valid alternation: accelerate, with diminishing returns near top speed.
+                            float headroom = 1f - (Speed / _topSpeed);
+
+                            float timingDifference = Mathf.Abs(stepInterval - _idealStepInterval);
+
+                            float timingMultiplier = Mathf.Clamp01(
+                                1f - (timingDifference / _tooSlowStepInterval)
+                            );
+
+                            Speed = Mathf.Min(
+                                _topSpeed,
+                                Speed + (_accelPerAlternation * timingMultiplier * headroom)
+                            );
+
+                            _lastPedal = pressed;
+                            _stepTimer = TickTimer.CreateFromSeconds(Runner, _idealStepInterval);
+                        }
                     }
                 }
 

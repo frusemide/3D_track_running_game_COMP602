@@ -14,6 +14,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Race_Event1.unity
     guid: dabd404cd2907eb4d8d072d75077c917
+  - enabled: 1
+    path: Assets/Scenes/PodiumScene.unity
+    guid: d94303487c277374e9639cf80df0b37d
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

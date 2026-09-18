@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 21256c5b62f346f18640dad779911e20
+timeCreated: 1430348781
+licenseType: Store
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 374760
+  packageName: 'Pro Nature Biome: Starter Pack'
+  packageVersion: 1.1
+  assetPath: Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs
+  uploadId: 936820

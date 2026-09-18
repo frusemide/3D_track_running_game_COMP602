@@ -31,6 +31,7 @@ public class GameLauncher : MonoBehaviour
             LoadingScreen.Instance.Show();
 
         _runner = gameObject.AddComponent<NetworkRunner>();
+        _runner.name = $"NetworkRunner_{mode}";
         _runner.ProvideInput = true;
 
         var scene = SceneRef.FromIndex(_lobbySceneIndex);
@@ -59,8 +60,8 @@ public class GameLauncher : MonoBehaviour
         // Wait until the lobby is the active scene and has rendered, then uncover.
         while (SceneManager.GetActiveScene().buildIndex != _lobbySceneIndex)
             await System.Threading.Tasks.Task.Yield();
-            await System.Threading.Tasks.Task.Yield();
-            await System.Threading.Tasks.Task.Yield();
+        await System.Threading.Tasks.Task.Yield();
+        await System.Threading.Tasks.Task.Yield();
 
         if (LoadingScreen.Instance != null)
             LoadingScreen.Instance.Hide();

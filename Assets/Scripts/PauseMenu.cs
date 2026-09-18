@@ -6,8 +6,8 @@ using Fusion;
 // Gathering lobby pause/overlay menu. Toggled with Escape. Lives in the lobby scene.
 //
 // In multiplayer, this doesn't truly "pause" (other players keep playing) -- it's an
-// overlay of options. Resume and Return to Main Menu are functional; Event Setup, Shop,
-// and Settings are scaffolded stubs to fill in when those systems are built.
+// overlay of options. Resume, Return to Main Menu, and Settings are functional; Event
+// Setup and Shop are scaffolded stubs to fill in when those systems are built.
 //
 // Return to Main Menu shuts down the Fusion session cleanly, destroys the persistent
 // launcher (clean slate), and loads the menu -- using the shared LoadingScreen to cover it.
@@ -15,6 +15,8 @@ public class PauseMenu : MonoBehaviour
 {
     [SerializeField] private GameObject _menuPanel;      // the overlay panel (starts hidden)
     [SerializeField] private int _mainMenuSceneIndex = 0;
+    [SerializeField] private GameObject _settingsPanel;
+    [SerializeField] private GameObject _pauseButtons;
 
     private bool _isOpen;
 
@@ -84,11 +86,30 @@ public class PauseMenu : MonoBehaviour
         Debug.Log("Shop: not yet implemented");
     }
 
+    // --- Settings (functional) ---
+
     // Wired to the Settings button.
     public void OpenSettings()
     {
-        // TODO: open the settings UI (audio, display, controls) -- shared with main menu.
-        Debug.Log("Settings: not yet implemented");
+        if (_pauseButtons != null)
+            _pauseButtons.SetActive(false);
+
+        if (_settingsPanel != null)
+            _settingsPanel.SetActive(true);
+
+        GameplayInputBlock.Blocked = true;
+    }
+
+    // Wired to the settings panel's back/close button.
+    public void CloseSettings()
+    {
+        if (_settingsPanel != null)
+            _settingsPanel.SetActive(false);
+
+        if (_pauseButtons != null)
+            _pauseButtons.SetActive(true);
+
+        GameplayInputBlock.Blocked = true;   // still paused, just back on the main pause buttons
     }
 
     // --- Return to main menu (functional) ---
