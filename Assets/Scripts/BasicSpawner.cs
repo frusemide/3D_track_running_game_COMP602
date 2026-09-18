@@ -14,8 +14,8 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
     private Dictionary<PlayerRef, NetworkObject> _spawnedCharacters = new Dictionary<PlayerRef, NetworkObject>();
 
     // Default bindings: Left arrow = pedal A, Right arrow = pedal B. Remappable later.
-    private Key _pedalAKey = Key.LeftArrow;
-    private Key _pedalBKey = Key.RightArrow;
+    private Key _pedalAKey => KeybindManager.PedalA;
+    private Key _pedalBKey => KeybindManager.PedalB;
     private bool _pedalA;
     private bool _pedalB;
 
