@@ -10,12 +10,12 @@ public class FinishLine : MonoBehaviour
         if (!other.CompareTag(playerTag))
             return;
 
-        if (RaceManager.Instance == null)
+        if (LegacyRaceManager.Instance == null)
         {
             Debug.LogError("RaceManager could not be found.");
             return;
         }
 
-        RaceManager.Instance.FinishRace();
+        LegacyRaceManager.Instance.FinishRace();
     }
 }

@@ -1,8 +1,8 @@
 using UnityEngine;
 
-public class RaceManager : MonoBehaviour
+public class LegacyRaceManager : MonoBehaviour
 {
-    public static RaceManager Instance;
+    public static LegacyRaceManager Instance;
 
     [Header("Race Components")]
     public RaceTimer raceTimer;
@@ -41,7 +41,7 @@ public class RaceManager : MonoBehaviour
     {
         if (raceTimer == null)
         {
-            Debug.LogError("RaceTimer has not been assigned to RaceManager.");
+            Debug.LogError("RaceTimer has not been assigned to LegacyRaceManager.");
             return;
         }
 
