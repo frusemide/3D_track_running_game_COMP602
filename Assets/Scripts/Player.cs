@@ -115,6 +115,13 @@ public class Player : NetworkBehaviour
                 break;
 
             case MovementMode.Locked:
+                // Locked means stationary: drop any leftover speed so it can't carry
+                // into the next phase (e.g. sprinting into the race start).
+                if (HasStateAuthority)
+                {
+                    Speed = 0f;
+                    _cc.Velocity = Vector3.zero;
+                }
                 break;
         }
     }
@@ -404,6 +411,8 @@ public class Player : NetworkBehaviour
         RunState = StumbleState.Running;
         Speed = 0f;
         _lastPedal = 0;
+        _stepTimer = TickTimer.None;
+        InPracticeMode = false;   // race/reset takes over from any practice dash
         _cc.Velocity = Vector3.zero;
 
         if (_animator != null)

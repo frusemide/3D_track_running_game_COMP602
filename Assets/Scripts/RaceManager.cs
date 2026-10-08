@@ -165,6 +165,12 @@ public class RaceManager : NetworkBehaviour
                     p.SetForward(spot.forward);
                 }
 
+                // Clear leftover movement state (lobby sprint speed, stumbles, pedal
+                // history) so nobody carries momentum into the race start.
+                if (p.TryGetComponent<PracticeController>(out var practice))
+                    practice.CancelPractice();
+                p.ResetRacingState();
+
                 index++;
             }
         }

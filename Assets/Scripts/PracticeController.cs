@@ -83,6 +83,18 @@ public class PracticeController : NetworkBehaviour
         _player.ResetRacingState();
     }
 
+    // Called by RaceManager when a real race begins, so an in-progress practice dash
+    // can't keep running (and later call Finish/ResetRacingState mid-race).
+    public void CancelPractice()
+    {
+        if (!HasStateAuthority)
+            return;
+
+        State = PracticeState.Idle;
+        _countdownTimer = TickTimer.None;
+        _player.InPracticeMode = false;
+    }
+
     public override void FixedUpdateNetwork()
     {
         if (!HasStateAuthority)
