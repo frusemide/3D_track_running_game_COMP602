@@ -1,208 +1,145 @@
 using Fusion;
 using UnityEngine;
 
-// Networked cosmetic loadout for a player: a preset body colour + one rigid head
-// accessory (none/cap/glasses/sunglasses), parented to Y-Bot's head bone.
+// Networked cosmetic loadout: one head item, one pair of shoes, one body colour.
+// Values are indices into the CosmeticDatabase (-1 = nothing, for head/feet).
 //
-// Host-authoritative like everything else networked on Player -- only the
-// StateAuthority may write the [Networked] fields; every client (including the owner)
-// reacts through the ChangeDetector and applies the visual locally. Same pattern
-// Player.cs uses for StumbleState/Celebration.
-//
-// Scope: rigid accessories only, on purpose -- see CustomisationCatalogue. Stat
-// modifiers and a shop/selection UI are later, separate steps; this component only
-// handles applying the loadout to the model.
+// Host-authoritative: clients ask with RPC_RequestItem, the host validates and writes
+// the [Networked] values, and every client applies visuals through CosmeticVisuals
+// when the ChangeDetector sees them change.
 public class PlayerCustomisation : NetworkBehaviour
 {
-    // Per-item fit: the Urban Man accessories weren't authored against Y-Bot's
-    // proportions, so each one needs its own nudge/scale once parented to the head
-    // bone. Exposed per-slot (rather than baked into prefab variants) so you can dial
-    // each one in from the Inspector without creating separate prefab assets.
-    [System.Serializable]
-    public struct AccessoryFit
-    {
-        public Vector3 LocalPosition;
-        public Vector3 LocalEuler;
-        public float Scale;
+    [SerializeField] private CosmeticDatabase _database;
+    [SerializeField] private CosmeticVisuals _visuals;
 
-        public static AccessoryFit Default => new AccessoryFit
-        {
-            LocalPosition = new Vector3(0.003f, 0.125f, 0f),
-            LocalEuler = Vector3.zero,
-            Scale = 1.3f
-        };
-    }
+    [Networked] public int HeadIndex { get; private set; }
+    [Networked] public int ColourIndex { get; private set; }
+    [Networked] public int FeetIndex { get; private set; }
 
-    [Header("Body")]
-    [Tooltip("The renderer to recolour. Uses a MaterialPropertyBlock so it doesn't create a material instance per player.")]
-    [SerializeField] private Renderer _bodyRenderer;
-    [Tooltip("Shader colour property to drive. Built-in/Standard shaders usually want \"_Color\"; URP/Lit shaders usually want \"_BaseColor\" -- check which your Y-Bot material uses.")]
-    [SerializeField] private string _colourProperty = "_BaseColor";
-
-    [Header("Head accessory")]
-    [Tooltip("Bone to parent the accessory under. Should be Y-Bot's mixamorig:Head.")]
-    [SerializeField] private Transform _headBone;
-    [SerializeField] private GameObject _capPrefab;
-    [SerializeField] private GameObject _glassesPrefab;
-    [SerializeField] private GameObject _sunglassesPrefab;
-
-    // Starting values are the last hand-tuned offset/scale that worked for a cap parented
-    // to the head bone -- reused as the default for all three so equipping anything is
-    // immediately reasonable, not floating off in space. Glasses/sunglasses will likely
-    // need their own tweak (lower + closer to the face than a cap sits) -- that's exactly
-    // what having three separate fits here is for.
-    [Header("Per-item fit (position/rotation/scale relative to the head bone)")]
-    [SerializeField] private AccessoryFit _capFit = AccessoryFit.Default;
-    [SerializeField] private AccessoryFit _glassesFit = AccessoryFit.Default;
-    [SerializeField] private AccessoryFit _sunglassesFit = AccessoryFit.Default;
-
-    [Networked] private int BodyColourIndex { get; set; }
-    [Networked] private CustomisationCatalogue.HeadAccessory Accessory { get; set; }
-    [Networked] private NetworkBool RainbowMode { get; set; }
-
-    private MaterialPropertyBlock _propBlock;
-    private GameObject _currentAccessoryInstance;
-    private ChangeDetector _changeDetector;
+    // What's currently applied to the model, so visuals update whenever the networked
+    // values differ. (Comparing directly, rather than via ChangeDetector, can't miss a
+    // value that changes and changes back between checks -- e.g. during spawn.)
+    private int _appliedHead = int.MinValue;
+    private int _appliedFeet = int.MinValue;
+    private int _appliedColour = int.MinValue;
+    private bool _savedLoadoutRequested;
+    private Player _player;   // local player: has the saved loadout been sent this spawn?
 
     public override void Spawned()
     {
-        _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
-        _propBlock = new MaterialPropertyBlock();
+        _player = GetComponent<Player>();
 
-        // Apply whatever the networked state already holds -- covers late joiners
-        // seeing players who'd already equipped something before they connected.
-        ApplyColour(BodyColourIndex);
-        ApplyAccessory(Accessory);
+        if (HasStateAuthority)
+        {
+            HeadIndex = -1;
+            FeetIndex = -1;
+            ColourIndex = 0;
+        }
+        // Visuals are applied in Render() -- including for late joiners.
     }
 
-    // --- Host-only setters. Not RPC-wrapped yet -- nothing except the host drives
-    // selection during this stage (a debug key, or direct calls while testing). Add an
-    // InputAuthority-facing RPC once a client-side shop/selection UI exists (Step 5). ---
+    // --- Host-side ---
 
-    public void SetBodyColour(int index)
+    public void SetItem(CosmeticSlot slot, int index)
     {
         if (!HasStateAuthority) return;
+        if (_player != null && _player.IsRacing) return;   // loadout (and so race stats) locked mid-race
+        if (!IsValidChoice(slot, index)) return;
 
-        RainbowMode = false;
-        BodyColourIndex = Mathf.Clamp(index, 0, CustomisationCatalogue.BodyColours.Length - 1);
+        switch (slot)
+        {
+            case CosmeticSlot.Head: HeadIndex = index; break;
+            case CosmeticSlot.Feet: FeetIndex = index; break;
+            case CosmeticSlot.Colour: ColourIndex = index; break;
+        }
     }
 
-    public void SetAccessory(CustomisationCatalogue.HeadAccessory accessory)
+    // The host only accepts real, unlocked items. When the wallet exists, swap the
+    // unlock check for an ownership check here -- the UI never gets the final say.
+    private bool IsValidChoice(CosmeticSlot slot, int index)
     {
-        if (!HasStateAuthority) return;
+        if (index == -1)
+            return slot != CosmeticSlot.Colour;   // head/feet can be emptied; colour can't
 
-        Accessory = accessory;
+        CosmeticItem item = _database.Get(slot, index);
+        return item != null && item.UnlockedByDefault;
     }
 
-    public void SetRainbowMode(bool enabled)
+    // Sum of the equipped items' stat modifiers, used by Player to adjust race values.
+    // Built from the networked loadout, so every machine computes the same result.
+    public ItemStats GetStatModifiers()
     {
-        if (!HasStateAuthority) return;
+        ItemStats total = default;
+        if (_database == null) return total;
 
-        RainbowMode = enabled;
+        CosmeticItem head = _database.Get(CosmeticSlot.Head, HeadIndex);
+        CosmeticItem colour = _database.Get(CosmeticSlot.Colour, ColourIndex);
+        CosmeticItem feet = _database.Get(CosmeticSlot.Feet, FeetIndex);
+
+        if (head != null) total += head.Stats;
+        if (colour != null) total += colour.Stats;
+        if (feet != null) total += feet.Stats;
+        return total;
     }
 
+    // --- Client -> host requests ---
+
+    // Called by the shop for the local player: remember the choice in the save
+    // profile, then ask the host to apply it.
+    public void RequestItem(CosmeticSlot slot, int index)
+    {
+        CosmeticsData saved = SaveSystem.Profile.Cosmetics;
+        switch (slot)
+        {
+            case CosmeticSlot.Head: saved.Head = index; break;
+            case CosmeticSlot.Colour: saved.Colour = index; break;
+            case CosmeticSlot.Feet: saved.Feet = index; break;
+        }
+        SaveSystem.Save();
+
+        RPC_RequestItem((int)slot, index);
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_RequestItem(int slot, int index)
+    {
+        SetItem((CosmeticSlot)slot, index);
+    }
 
     // --- React to networked changes on every client ---
+
     public override void Render()
     {
-        foreach (var change in _changeDetector.DetectChanges(this))
+        // Once per spawn, the local player asks the host to re-apply their saved loadout.
+        // The host validates it like any other request, so a saved item that no longer
+        // exists (or is locked) is simply ignored and the default stays.
+        if (!_savedLoadoutRequested && HasInputAuthority)
         {
-            switch (change)
-            {
-                case nameof(BodyColourIndex):
-                    if (!RainbowMode)
-                        ApplyColour(BodyColourIndex);
-                    break;
+            _savedLoadoutRequested = true;
 
-                case nameof(Accessory):
-                    ApplyAccessory(Accessory);
-                    break;
-
-                case nameof(RainbowMode):
-                    if (!RainbowMode)
-                        ApplyColour(BodyColourIndex);
-                    break;
-            }
+            CosmeticsData saved = SaveSystem.Profile.Cosmetics;
+            RPC_RequestItem((int)CosmeticSlot.Head, saved.Head);
+            RPC_RequestItem((int)CosmeticSlot.Colour, saved.Colour);
+            RPC_RequestItem((int)CosmeticSlot.Feet, saved.Feet);
         }
 
-        if (RainbowMode)
+        if (HeadIndex != _appliedHead)
         {
-            ApplyRainbowColour();
-        }
-    }
-
-    // --- TEMP debug controls, so you can test fits in Play mode without a shop UI yet
-    // (Step 5). Only the local player's own instance reacts to its own keypresses --
-    // same HasInputAuthority gating Player.cs/ThirdPersonCamera use elsewhere. Uses the
-    // new Input System's Keyboard, matching RaceManager's existing "O" debug key rather
-    // than the legacy Input class. Remove once a real shop UI calls SetAccessory /
-    // SetBodyColour instead.
-    private void Update()
-    {
-        if (!HasInputAuthority) return;
-
-        var kb = UnityEngine.InputSystem.Keyboard.current;
-        if (kb == null) return;
-
-        if (kb.digit1Key.wasPressedThisFrame) SetAccessory(CustomisationCatalogue.HeadAccessory.None);
-        if (kb.digit2Key.wasPressedThisFrame) SetAccessory(CustomisationCatalogue.HeadAccessory.Cap);
-        if (kb.digit3Key.wasPressedThisFrame) SetAccessory(CustomisationCatalogue.HeadAccessory.Glasses);
-        if (kb.digit4Key.wasPressedThisFrame) SetAccessory(CustomisationCatalogue.HeadAccessory.Sunglasses);
-
-        if (kb.digit5Key.wasPressedThisFrame)
-            SetBodyColour((BodyColourIndex + 1) % CustomisationCatalogue.BodyColours.Length);
-
-        if (kb.leftShiftKey.isPressed && kb.digit7Key.wasPressedThisFrame)
-            SetRainbowMode(!RainbowMode);
-    }
-
-    // --- Local visual application ---
-
-    private void ApplyColour(int index)
-    {
-        if (_bodyRenderer == null) return;
-
-        _bodyRenderer.GetPropertyBlock(_propBlock);
-        _propBlock.SetColor(_colourProperty, CustomisationCatalogue.GetColour(index));
-        _bodyRenderer.SetPropertyBlock(_propBlock);
-    }
-
-    private void ApplyRainbowColour()
-    {
-        if (_bodyRenderer == null) return;
-
-        float hue = (Time.time * 0.25f) % 1f;
-        Color rainbowColour = Color.HSVToRGB(hue, 1f, 1f);
-
-        _bodyRenderer.GetPropertyBlock(_propBlock);
-        _propBlock.SetColor(_colourProperty, rainbowColour);
-        _bodyRenderer.SetPropertyBlock(_propBlock);
-    }
-
-    private void ApplyAccessory(CustomisationCatalogue.HeadAccessory accessory)
-    {
-        if (_currentAccessoryInstance != null)
-        {
-            Destroy(_currentAccessoryInstance);
-            _currentAccessoryInstance = null;
+            _appliedHead = HeadIndex;
+            _visuals.ApplyHead(_database.Get(CosmeticSlot.Head, HeadIndex));
         }
 
-        if (accessory == CustomisationCatalogue.HeadAccessory.None || _headBone == null)
-            return;
-
-        (GameObject prefab, AccessoryFit fit) = accessory switch
+        if (FeetIndex != _appliedFeet)
         {
-            CustomisationCatalogue.HeadAccessory.Cap => (_capPrefab, _capFit),
-            CustomisationCatalogue.HeadAccessory.Glasses => (_glassesPrefab, _glassesFit),
-            CustomisationCatalogue.HeadAccessory.Sunglasses => (_sunglassesPrefab, _sunglassesFit),
-            _ => (null, default)
-        };
+            _appliedFeet = FeetIndex;
+            _visuals.ApplyFeet(_database.Get(CosmeticSlot.Feet, FeetIndex));
+        }
 
-        if (prefab == null) return;
-
-        _currentAccessoryInstance = Instantiate(prefab, _headBone);
-        _currentAccessoryInstance.transform.localPosition = fit.LocalPosition;
-        _currentAccessoryInstance.transform.localRotation = Quaternion.Euler(fit.LocalEuler);
-        _currentAccessoryInstance.transform.localScale = Vector3.one * fit.Scale;
+        // A Rainbow colour item is just another colour index; CosmeticVisuals animates it.
+        if (ColourIndex != _appliedColour)
+        {
+            _appliedColour = ColourIndex;
+            _visuals.ApplyColour(_database.Get(CosmeticSlot.Colour, ColourIndex));
+        }
     }
 }

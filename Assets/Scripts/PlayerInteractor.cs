@@ -33,6 +33,7 @@ public class PlayerInteractor : MonoBehaviour
     {
         if (_player == null) return;
         if (_player.Object == null) return;
+        if (!_player.Object.HasInputAuthority) return;
 
         // Don't detect or trigger interactions while a menu is open.
         if (GameplayInputBlock.Blocked)
@@ -50,8 +51,10 @@ public class PlayerInteractor : MonoBehaviour
 
     private void DetectInteractable()
     {
-        Vector3 origin = transform.position + Vector3.up * _originHeight;
+        Vector3 origin = transform.position + Vector3.up * _originHeight
+                         - transform.forward * _castRadius;   // start behind so touching still detects
         Vector3 direction = transform.forward;
+        float distance = _castDistance + _castRadius;
 
         Debug.DrawRay(origin, direction * _castDistance, Color.red);
 

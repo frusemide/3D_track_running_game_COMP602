@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b87bf057cae96b541aa98eca39a830d6, type: 3}
+  m_Name: Sunglasses
+  m_EditorClassIdentifier: Assembly-CSharp::CosmeticItem
+  DisplayName: Sunglasses
+  Icon: {fileID: 21300000, guid: 67b7f5df9fafe5e4a812ae7c2ff60c5f, type: 3}
+  SelectedIcon: {fileID: 21300000, guid: 4032a490c68130846bd0bbab4b28034c, type: 3}
+  Slot: 0
+  UnlockedByDefault: 1
+  Prefab: {fileID: 919132149155446097, guid: 41f7d0c11f19abf43aa25cfbfaeb4925, type: 3}
+  Fit:
+    LocalPosition: {x: 0.0019, y: 0.0615, z: 0.1351}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    Scale: 1.3
+  SecondaryPrefab: {fileID: 0}
+  SecondaryFit:
+    LocalPosition: {x: 0, y: 0, z: 0}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    Scale: 1
+  BodyColour: {r: 1, g: 1, b: 1, a: 1}
+  Rainbow: 0
+  RainbowSpeed: 0.25
+  Stats:
+    TopSpeed: 1
+    Acceleration: 1
+    Boost: -1
+    JumpDistance: 0
+    Recovery: 0

@@ -51,12 +51,24 @@ public class Player : NetworkBehaviour
     [SerializeField] private float _tooFastStepInterval = 0.18f;
     [SerializeField] private float _tooSlowStepInterval = 0.7f;
 
+    // Equipped cosmetics adjust three of the tunables above (see HandleTwoKeyRace).
+    // Items with all-zero stats leave the race exactly as tuned here.
+    [Header("Cosmetic stat effects")]
+    [Tooltip("How much each Top Speed / Acceleration point changes its race value, e.g. 0.04 = 4% per point.")]
+    [SerializeField, Range(0f, 0.2f)] private float _percentPerStatPoint = 0.04f;
+    [Tooltip("How much each Recovery point shortens a stumble, e.g. 0.10 = 10% per point. " +
+             "Applies to both the slide (stops sooner) and the lockout (gets up sooner).")]
+    [SerializeField, Range(0f, 0.3f)] private float _recoveryPercentPerPoint = 0.10f;
+    [Tooltip("The Recovery stat can never shorten the stumble lockout below this (seconds).")]
+    [SerializeField] private float _minRecoveryLockout = 0.4f;
+
     private NetworkCharacterController _cc;
     [Networked] private Vector3 _forward { get; set; }
     private RaceManager _raceManager;
     private Animator _animator;
     private PracticeController _practice;
     private ChangeDetector _changeDetector;
+    private PlayerCustomisation _customisation;
 
     // Per-player networked practice flag (lobby two-key at practice starts).
     [Networked] public NetworkBool InPracticeMode { get; set; }
@@ -77,6 +89,7 @@ public class Player : NetworkBehaviour
     private void Awake()
     {
         _cc = GetComponent<NetworkCharacterController>();
+        _customisation = GetComponent<PlayerCustomisation>();
     }
 
     public override void Spawned()
@@ -188,6 +201,15 @@ public class Player : NetworkBehaviour
     {
         float dt = Runner.DeltaTime;
 
+        // This tick's effective values: the tuned base, adjusted by equipped cosmetics.
+        // The loadout is networked, so the host and the predicting client get the same numbers.
+        ItemStats mods = _customisation != null ? _customisation.GetStatModifiers() : default;
+        float topSpeed = _topSpeed * StatScale(mods.TopSpeed);
+        float accelPerAlternation = _accelPerAlternation * StatScale(mods.Acceleration);
+        // Recovery shortens the whole stumble: a faster-stopping slide, then a shorter lockout.
+        float slideDecelRate = _slideDecelRate * RecoveryScale(mods.Recovery);
+        float recoveryLockout = Mathf.Max(_minRecoveryLockout, _recoveryLockout * RecoveryScale(-mods.Recovery));
+
         bool pedalA = data.Buttons.IsSet(NetworkInputData.RunPedalA);
         bool pedalB = data.Buttons.IsSet(NetworkInputData.RunPedalB);
 
@@ -230,7 +252,7 @@ public class Player : NetworkBehaviour
                         else
                         {
                             // Valid alternation: accelerate, with diminishing returns near top speed.
-                            float headroom = 1f - (Speed / _topSpeed);
+                            float headroom = 1f - (Speed / topSpeed);
 
                             float timingDifference = Mathf.Abs(stepInterval - _idealStepInterval);
 
@@ -239,8 +261,8 @@ public class Player : NetworkBehaviour
                             );
 
                             Speed = Mathf.Min(
-                                _topSpeed,
-                                Speed + (_accelPerAlternation * timingMultiplier * headroom)
+                                topSpeed,
+                                Speed + (accelPerAlternation * timingMultiplier * headroom)
                             );
 
                             _lastPedal = pressed;
@@ -258,7 +280,7 @@ public class Player : NetworkBehaviour
 
             case StumbleState.Sliding:
                 // Proportional glide: bleeds fast at high speed, eases to a soft stop.
-                Speed = Mathf.Max(0f, Speed - Speed * _slideDecelRate * dt);
+                Speed = Mathf.Max(0f, Speed - Speed * slideDecelRate * dt);
 
                 if (Speed > 0.5f)
                 {
@@ -271,7 +293,7 @@ public class Player : NetworkBehaviour
                     Speed = 0f;
                     _cc.Velocity = Vector3.zero;
                     RunState = StumbleState.Recovering;
-                    _recoverTimer = TickTimer.CreateFromSeconds(Runner, _recoveryLockout);
+                    _recoverTimer = TickTimer.CreateFromSeconds(Runner, recoveryLockout);
                 }
                 break;
 
@@ -285,6 +307,13 @@ public class Player : NetworkBehaviour
                 break;
         }
     }
+
+    // Multiplier for a cosmetic stat: +1 point = +_percentPerStatPoint (e.g. 4%).
+    // Never drops below 10%, however negative the stats get.
+    private float StatScale(int points) => Mathf.Max(0.1f, 1f + points * _percentPerStatPoint);
+
+    // Same idea for Recovery, with its own (stronger) per-point strength.
+    private float RecoveryScale(int points) => Mathf.Max(0.1f, 1f + points * _recoveryPercentPerPoint);
 
     // Enter the stumble: freeze acceleration and start the decelerating glide from
     // whatever speed we had (that speed determines slide distance).
