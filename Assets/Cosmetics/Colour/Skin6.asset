@@ -31,8 +31,8 @@ MonoBehaviour:
   Rainbow: 0
   RainbowSpeed: 0.25
   Stats:
-    TopSpeed: 3
-    Acceleration: 2
+    TopSpeed: 0
+    Acceleration: 0
     Boost: 0
     JumpDistance: 0
     Recovery: 0
