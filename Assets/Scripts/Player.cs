@@ -51,7 +51,8 @@ public class Player : NetworkBehaviour
     [SerializeField] private float _tooFastStepInterval = 0.18f;
     [SerializeField] private float _tooSlowStepInterval = 0.7f;
 
-    // Equipped cosmetics adjust three of the tunables above (see HandleTwoKeyRace).
+    // Equipped cosmetics adjust the tunables above (see HandleTwoKeyRace); weather and
+    // slippery patches adjust them further through RaceModifiers.
     // Items with all-zero stats leave the race exactly as tuned here.
     [Header("Cosmetic stat effects")]
     [Tooltip("How much each Top Speed / Acceleration point changes its race value, e.g. 0.04 = 4% per point.")]
@@ -69,6 +70,7 @@ public class Player : NetworkBehaviour
     private PracticeController _practice;
     private ChangeDetector _changeDetector;
     private PlayerCustomisation _customisation;
+    private bool _wasOnSlipPatch;   // host-side, only for the enter/leave log
 
     // Per-player networked practice flag (lobby two-key at practice starts).
     [Networked] public NetworkBool InPracticeMode { get; set; }
@@ -78,6 +80,8 @@ public class Player : NetworkBehaviour
     // 0 = none yet, 1 = pedal A, 2 = pedal B. Which pedal was last accepted, for alternation.
     [Networked] private byte _lastPedal { get; set; }
     [Networked] private TickTimer _stepTimer { get; set; }
+    // Tick of the last accepted pedal, for measuring real time between pedals on slip patches.
+    [Networked] private int _lastPedalTick { get; set; }
     // Recovery lockout timer after a stumble.
     [Networked] private TickTimer _recoverTimer { get; set; }
     // --- Race participation (Option 3: per-player race state) ---
@@ -204,7 +208,22 @@ public class Player : NetworkBehaviour
         // This tick's effective values: the tuned base, adjusted by equipped cosmetics.
         // The loadout is networked, so the host and the predicting client get the same numbers.
         ItemStats mods = _customisation != null ? _customisation.GetStatModifiers() : default;
-        float topSpeed = _topSpeed * StatScale(mods.TopSpeed);
+
+        // Weather + shoes (unit tested in RaceModifiersTests). Rain cuts top speed unless the
+        // shoes are made for rain; slippery patches make rushed pedalling stumble, worse in
+        // rain, offset by the Grip stat.
+        WeatherType weather = _raceManager != null ? _raceManager.Weather : WeatherType.Clear;
+        WeatherType shoeWeather = _customisation != null ? _customisation.GetShoeWeather() : WeatherType.Clear;
+        bool onSlipPatch = SlipPatch.IsOnAnyPatch(transform.position);
+        if (HasStateAuthority && onSlipPatch != _wasOnSlipPatch)
+        {
+            _wasOnSlipPatch = onSlipPatch;
+            Debug.Log(onSlipPatch ? $"[Player] Entered slip patch ({weather})" : "[Player] Left slip patch");
+        }
+        float tooFastStepInterval = RaceModifiers.TooFastStepInterval(_tooFastStepInterval, onSlipPatch, weather, mods.Grip);
+
+        float topSpeed = _topSpeed * StatScale(mods.TopSpeed)
+                       * RaceModifiers.WeatherTopSpeedMultiplier(weather, shoeWeather);
         float accelPerAlternation = _accelPerAlternation * StatScale(mods.Acceleration);
         // Recovery shortens the whole stumble: a faster-stopping slide, then a shorter lockout.
         float slideDecelRate = _slideDecelRate * RecoveryScale(mods.Recovery);
@@ -244,9 +263,19 @@ public class Player : NetworkBehaviour
                         float stepInterval = _stepTimer.RemainingTime(Runner) ?? _tooSlowStepInterval;
                         stepInterval = _tooSlowStepInterval - stepInterval;
 
-                        if (stepInterval < _tooFastStepInterval)
+                        // stepInterval above never drops below _idealStepInterval, so it can't spot
+                        // rushed pedalling. On slip patches, use the real time since the last pedal
+                        // instead (dry ground is left as it was). First pedal after a stumble is always safe.
+                        float secondsSinceLastPedal = _lastPedal == 0
+                            ? float.MaxValue
+                            : ((int)Runner.Tick - _lastPedalTick) * Runner.DeltaTime;
+                        bool slippedOnPatch = onSlipPatch && secondsSinceLastPedal < tooFastStepInterval;
+
+                        if (slippedOnPatch || stepInterval < _tooFastStepInterval)
                         {
-                            // Pedal came down too quickly = stumble.
+                            // Pedal came down too quickly (or rushed on a slip patch) = stumble.
+                            if (slippedOnPatch)
+                                Debug.Log($"[Player] Slipped: {secondsSinceLastPedal:F2}s between pedals, needed {tooFastStepInterval:F2}s");
                             BeginStumble();
                         }
                         else
@@ -266,6 +295,7 @@ public class Player : NetworkBehaviour
                             );
 
                             _lastPedal = pressed;
+                            _lastPedalTick = (int)Runner.Tick;
                             _stepTimer = TickTimer.CreateFromSeconds(Runner, _idealStepInterval);
                         }
                     }

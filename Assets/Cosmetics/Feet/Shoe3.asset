@@ -27,12 +27,13 @@ MonoBehaviour:
     LocalPosition: {x: 0.01, y: -0.05, z: 0.05}
     LocalEuler: {x: 0, y: 0, z: 0}
     Scale: 1.5
+  SuitedWeather: 0
   BodyColour: {r: 1, g: 1, b: 1, a: 1}
   Rainbow: 0
   RainbowSpeed: 0.25
   Stats:
-    TopSpeed: 0
-    Acceleration: 0
+    TopSpeed: -1
+    Acceleration: -1
     Boost: 0
-    JumpDistance: 2
-    Recovery: -2
+    Grip: 2
+    Recovery: 1

@@ -58,10 +58,19 @@ public class RaceManager : NetworkBehaviour
     [SerializeField] private RaceStartNoticeBanner _startNoticeBanner; // image notice that race is about to start
     [SerializeField] private float _startNoticeDuration = 2.5f; // duration start notice is shown
 
+    [Header("Weather")]
+    [Tooltip("Pick Clear or Rain at random for each race. Untick to always use Fixed Weather.")]
+    [SerializeField] private bool _randomWeather = true;
+    [SerializeField] private WeatherType _fixedWeather = WeatherType.Clear;
+    [Tooltip("Optional: rain particles / wet-look objects, switched on for every client while it's raining.")]
+    [SerializeField] private GameObject _rainEffects;
+
     [Networked] public RacePhase Phase { get; private set; }
     [Networked] private TickTimer _phaseTimer { get; set; }
     [Networked] public int RaceStartTick { get; private set; }
     [Networked] private TickTimer _startNoticeTimer { get; set; }
+    // Host picks this when a race starts; Player reads it every tick (top speed + slip patches).
+    [Networked] public WeatherType Weather { get; private set; }
 
     // --- Read-only accessors for local presentation (RaceHud etc.) ---
     // Seconds left in the current phase timer (Countdown/Results/Podium); 0 once expired
@@ -143,6 +152,10 @@ public class RaceManager : NetworkBehaviour
     {
         Phase = RacePhase.Positioning;
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _positioningDuration);
+
+        // Weather is decided before the countdown so players see it while lining up.
+        Weather = _randomWeather ? (WeatherType)UnityEngine.Random.Range(0, 2) : _fixedWeather;   // 0 = Clear, 1 = Rain
+        Debug.Log($"[RaceManager] Weather for this race: {Weather}");
 
         // Enrol every player in the session as a participant and line them up at the
         // start, in join order, so everyone begins the same distance from the finish
@@ -248,6 +261,7 @@ public class RaceManager : NetworkBehaviour
     {
         Phase = RacePhase.Lobby;
         _startNoticeTimer = TickTimer.None;
+        Weather = WeatherType.Clear;   // the lobby is always dry
 
         int index = 0;
         // Clear race state on all players for the next race.
@@ -299,6 +313,11 @@ public class RaceManager : NetworkBehaviour
                     break;
             }
         }
+
+        // Checked every frame rather than via the ChangeDetector so late joiners also see rain.
+        bool raining = Weather == WeatherType.Rain;
+        if (_rainEffects != null && _rainEffects.activeSelf != raining)
+            _rainEffects.SetActive(raining);
     }
 
     private void OnPhaseChanged(RacePhase newPhase)

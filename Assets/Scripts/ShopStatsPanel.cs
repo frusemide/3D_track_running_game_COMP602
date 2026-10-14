@@ -1,13 +1,13 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 // Display-only stat readout for the shop: base stats + everything equipped.
 // Hovering an item previews how it would change each stat:
 //   increase -> the bar extends in the Increase colour, number shows e.g. "6 (+1)"
 //   decrease -> the part you'd lose shows in the Decrease colour, number shows e.g. "4 (-1)"
-// Nothing here affects gameplay yet -- when mechanics are built, the host will read the
-// same ItemStats from the equipped items.
+// Display only: gameplay reads the same ItemStats from the equipped items on the host.
 public class ShopStatsPanel : MonoBehaviour
 {
     [System.Serializable]
@@ -23,7 +23,7 @@ public class ShopStatsPanel : MonoBehaviour
     [Header("Values")]
     [SerializeField] private ItemStats _baseStats = new ItemStats
     {
-        TopSpeed = 5, Acceleration = 5, Boost = 5, JumpDistance = 5, Recovery = 5
+        TopSpeed = 5, Acceleration = 5, Boost = 5, Grip = 5, Recovery = 5
     };
     [SerializeField, Min(1)] private int _maxStat = 10;
 
@@ -31,7 +31,8 @@ public class ShopStatsPanel : MonoBehaviour
     [SerializeField] private StatRow _topSpeed;
     [SerializeField] private StatRow _acceleration;
     [SerializeField] private StatRow _boost;
-    [SerializeField] private StatRow _jumpDistance;
+    [FormerlySerializedAs("_jumpDistance")]   // keeps the existing row wiring in the scene
+    [SerializeField] private StatRow _grip;
     [SerializeField] private StatRow _recovery;
 
     [Header("Hover preview colours")]
@@ -58,7 +59,7 @@ public class ShopStatsPanel : MonoBehaviour
         SetRow(_topSpeed, _current.TopSpeed, preview.TopSpeed);
         SetRow(_acceleration, _current.Acceleration, preview.Acceleration);
         SetRow(_boost, _current.Boost, preview.Boost);
-        SetRow(_jumpDistance, _current.JumpDistance, preview.JumpDistance);
+        SetRow(_grip, _current.Grip, preview.Grip);
         SetRow(_recovery, _current.Recovery, preview.Recovery);
     }
 
@@ -67,7 +68,7 @@ public class ShopStatsPanel : MonoBehaviour
         SetRow(_topSpeed, _current.TopSpeed, _current.TopSpeed);
         SetRow(_acceleration, _current.Acceleration, _current.Acceleration);
         SetRow(_boost, _current.Boost, _current.Boost);
-        SetRow(_jumpDistance, _current.JumpDistance, _current.JumpDistance);
+        SetRow(_grip, _current.Grip, _current.Grip);
         SetRow(_recovery, _current.Recovery, _current.Recovery);
     }
 

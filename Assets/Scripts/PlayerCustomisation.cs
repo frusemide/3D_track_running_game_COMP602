@@ -82,6 +82,13 @@ public class PlayerCustomisation : NetworkBehaviour
         return total;
     }
 
+    // The weather the equipped shoes are designed for. No shoes = no weather protection.
+    public WeatherType GetShoeWeather()
+    {
+        CosmeticItem feet = _database != null ? _database.Get(CosmeticSlot.Feet, FeetIndex) : null;
+        return feet != null ? feet.SuitedWeather : WeatherType.Clear;
+    }
+
     // --- Client -> host requests ---
 
     // Called by the shop for the local player: remember the choice in the save

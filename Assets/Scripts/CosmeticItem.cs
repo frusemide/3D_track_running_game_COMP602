@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // Tab order in the shop matches this order: Head, Colour, Feet.
 public enum CosmeticSlot { Head = 0, Colour = 1, Feet = 2 }
@@ -18,16 +19,19 @@ public struct AttachmentFit
     };
 }
 
-// Display-only for now. Later, the host can read these to modify movement
-// (e.g. JumpDistance once hazards exist, Boost -> start-timing bonus,
-// Recovery -> shorter stumble lockout). Higher is always better.
+// Stat modifiers the host reads to adjust movement (see Player.HandleTwoKeyRace):
+// TopSpeed, Acceleration, Recovery -> shorter stumble lockout, Grip -> less slipping on
+// slippery patches, Boost -> start-timing bonus. Higher is always better.
 [System.Serializable]
 public struct ItemStats
 {
     public int TopSpeed;
     public int Acceleration;
     public int Boost;
-    public int JumpDistance;
+    // Replaced Jump Distance. FormerlySerializedAs carries existing item values over.
+    [Tooltip("Higher = slips less on slippery patches (see RaceModifiers.TooFastStepInterval).")]
+    [FormerlySerializedAs("JumpDistance")]
+    public int Grip;
     [Tooltip("Higher = gets up faster after a stumble.")]
     public int Recovery;
 
@@ -36,7 +40,7 @@ public struct ItemStats
         TopSpeed = a.TopSpeed + b.TopSpeed,
         Acceleration = a.Acceleration + b.Acceleration,
         Boost = a.Boost + b.Boost,
-        JumpDistance = a.JumpDistance + b.JumpDistance,
+        Grip = a.Grip + b.Grip,
         Recovery = a.Recovery + b.Recovery
     };
 }
@@ -57,6 +61,8 @@ public class CosmeticItem : ScriptableObject
     public AttachmentFit Fit = AttachmentFit.Default;
     public GameObject SecondaryPrefab;
     public AttachmentFit SecondaryFit = AttachmentFit.Default;
+    [Tooltip("Feet only: shoes designed for this weather avoid its top-speed penalty.")]
+    public WeatherType SuitedWeather = WeatherType.Clear;
 
     [Header("Colour items only")]
     public Color BodyColour = Color.white;
