@@ -57,6 +57,9 @@ public class RaceManager : NetworkBehaviour
     [SerializeField] private Transform _spectatorArea; // where everyone else gathers
     [SerializeField] private RaceStartNoticeBanner _startNoticeBanner; // image notice that race is about to start
     [SerializeField] private float _startNoticeDuration = 2.5f; // duration start notice is shown
+    
+    [Header("Bot Configuration")]
+    [SerializeField] private BotSpawner _botSpawner;  // Reference to bot spawner
 
     [Networked] public RacePhase Phase { get; private set; }
     [Networked] private TickTimer _phaseTimer { get; set; }
@@ -75,6 +78,13 @@ public class RaceManager : NetworkBehaviour
     public override void Spawned()
     {
         _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
+        
+        // Find or create bot spawner
+        if (_botSpawner == null)
+        {
+            _botSpawner = FindFirstObjectByType<BotSpawner>();
+        }
+        
         if (HasStateAuthority)
             Phase = RacePhase.Lobby;
     }
@@ -83,7 +93,15 @@ public class RaceManager : NetworkBehaviour
     public void RequestStartRace()
     {
         if (!HasStateAuthority) return;
-        _startNoticeTimer = TickTimer.CreateFromSeconds(Runner, _startNoticeDuration);
+        
+        // Spawn bots to fill empty slots FIRST, before showing the notice
+        if (_botSpawner != null)
+        {
+            _botSpawner.SpawnBotsForRace();
+        }
+        
+        // Small delay to ensure bots are fully spawned before starting positioning
+        _startNoticeTimer = TickTimer.CreateFromSeconds(Runner, _startNoticeDuration + 0.5f);
         RPC_NotifyStarting(_startNoticeDuration);
     }
 
@@ -144,29 +162,26 @@ public class RaceManager : NetworkBehaviour
         Phase = RacePhase.Positioning;
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _positioningDuration);
 
-        // Enrol every player in the session as a participant and line them up at the
-        // start, in join order, so everyone begins the same distance from the finish
-        // line and facing the correct direction.
+        Debug.Log("[RaceManager] EnterPositioning - Starting to enroll players...");
+
+        // First, enroll real players (those with PlayerRef)
         int index = 0;
         foreach (var pref in Runner.ActivePlayers)
         {
             if (Runner.TryGetPlayerObject(pref, out var obj) &&
                 obj.TryGetComponent<Player>(out var p))
             {
+                Debug.Log($"[RaceManager] Enrolling real player at index {index}");
                 p.StartRacing();
 
                 if (_startLineSpots != null && index < _startLineSpots.Length && _startLineSpots[index] != null)
                 {
                     Transform spot = _startLineSpots[index];
                     TeleportPlayer(p, spot.position, spot.forward);
-                    // Teleport only updates the visual transform.rotation -- two-key racing
-                    // moves along a separate _forward field on Player, so it has to be told
-                    // about the new facing directly too (same fix PracticeController uses).
                     p.SetForward(spot.forward);
                 }
 
-                // Clear leftover movement state (lobby sprint speed, stumbles, pedal
-                // history) so nobody carries momentum into the race start.
+                // Clear leftover movement state
                 if (p.TryGetComponent<PracticeController>(out var practice))
                     practice.CancelPractice();
                 p.ResetRacingState();
@@ -174,6 +189,43 @@ public class RaceManager : NetworkBehaviour
                 index++;
             }
         }
+        
+        // Now find and enroll ALL bots (they don't have PlayerRef)
+        var allPlayers = FindObjectsByType<Player>(FindObjectsSortMode.None);
+        Debug.Log($"[RaceManager] Found {allPlayers.Length} total Player objects in scene");
+        
+        foreach (var p in allPlayers)
+        {
+            // Skip if already enrolled
+            if (p.IsRacing)
+            {
+                Debug.Log($"[RaceManager] Skipping player (already racing)");
+                continue;
+            }
+            
+            // Check if this is a bot
+            if (p.TryGetComponent<AIRacer>(out var ai) && ai.IsBotControlled)
+            {
+                Debug.Log($"[RaceManager] Enrolling bot at index {index}, position will be: {(_startLineSpots != null && index < _startLineSpots.Length ? _startLineSpots[index].position.ToString() : "none")}");
+                
+                p.StartRacing();
+                
+                if (_startLineSpots != null && index < _startLineSpots.Length && _startLineSpots[index] != null)
+                {
+                    Transform spot = _startLineSpots[index];
+                    TeleportPlayer(p, spot.position, spot.forward);
+                    p.SetForward(spot.forward);
+                }
+                
+                if (p.TryGetComponent<PracticeController>(out var practice))
+                    practice.CancelPractice();
+                p.ResetRacingState();
+                
+                index++;
+            }
+        }
+        
+        Debug.Log($"[RaceManager] Total racers enrolled: {index}");
 
         // TODO (scene loading later): load Race_Event -- start line spots above will need
         // to live in that scene too once this moves off the single testing scene.
@@ -189,6 +241,12 @@ public class RaceManager : NetworkBehaviour
     {
         Phase = RacePhase.Racing;
         RaceStartTick = Runner.Tick;
+        
+        // Activate bots to start racing
+        if (_botSpawner != null)
+        {
+            _botSpawner.ActivateBots();
+        }
     }
 
     private void EnterResults()
@@ -209,10 +267,15 @@ public class RaceManager : NetworkBehaviour
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _podiumDuration);
 
         var ranked = RaceLogic.RankParticipants(Runner);
+        Debug.Log($"[RaceManager] EnterPodium - {ranked.Count} participants to place");
 
         for (int i = 0; i < ranked.Count; i++)
         {
             Player p = ranked[i];
+            
+            // Debug log each player
+            bool isBot = p.TryGetComponent<AIRacer>(out var ai) && ai.IsBotControlled;
+            Debug.Log($"[RaceManager] Placing racer {i+1}: IsBot={isBot}, HasFinished={p.HasFinished}, FinishTick={p.FinishTick}");
 
             // Choose podium spot + celebration by placement.
             Transform spot;
@@ -241,7 +304,14 @@ public class RaceManager : NetworkBehaviour
     {
         var cc = p.GetComponent<NetworkCharacterController>();
         if (cc != null)
+        {
             cc.Teleport(position, Quaternion.LookRotation(forward));
+            Debug.Log($"[RaceManager] Teleported player to {position}");
+        }
+        else
+        {
+            Debug.LogWarning($"[RaceManager] Cannot teleport player - no NetworkCharacterController found!");
+        }
     }
 
     private void EnterLobby()
@@ -268,6 +338,12 @@ public class RaceManager : NetworkBehaviour
                 }
                 index++;
             }
+        }
+
+        // Despawn all bots after race ends
+        if (_botSpawner != null)
+        {
+            _botSpawner.DespawnAllBots();
         }
 
         // TODO (scene loading later): return to the lobby scene.
@@ -304,6 +380,32 @@ public class RaceManager : NetworkBehaviour
     private void OnPhaseChanged(RacePhase newPhase)
     {
         Debug.Log($"[RaceManager] Phase -> {newPhase}");
+        
+        // Handle crowd audio based on race phase
+        if (AudioManager.Instance != null)
+        {
+            switch (newPhase)
+            {
+                case RacePhase.Racing:
+                case RacePhase.Results:
+                    // Start crowd cheer only when race actually starts (not during countdown)
+                    AudioManager.Instance.StartCrowdSound();
+                    break;
+                
+                case RacePhase.Podium:
+                    // Stop both crowd and ambience during podium celebration
+                    AudioManager.Instance.StopCrowdSound();
+                    AudioManager.Instance.StopAmbienceSound();
+                    break;
+                    
+                case RacePhase.Lobby:
+                    // Stop crowd sound when returning to lobby, restart ambience
+                    AudioManager.Instance.StopCrowdSound();
+                    AudioManager.Instance.StartAmbienceSound();
+                    break;
+            }
+        }
+        
         // TODO: local UI per phase (countdown overlay, racing HUD, results, podium).
     }
 

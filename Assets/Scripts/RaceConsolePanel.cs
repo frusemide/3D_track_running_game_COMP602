@@ -106,6 +106,12 @@ public class RaceConsolePanel : MonoBehaviour
 
     private void OnStartClicked()
     {
+        // Play button click sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayButtonClickSound();
+        }
+
         if (_raceManager != null)
             _raceManager.RequestStartRace();
 
