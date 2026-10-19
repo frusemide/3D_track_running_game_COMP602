@@ -98,7 +98,10 @@ public class RaceConsolePanel : MonoBehaviour
         foreach (var p in _runner.ActivePlayers)
         {
             count++;
-            sb.AppendLine($"Player {count}{(p == _runner.LocalPlayer ? "  (you)" : "")}");
+            string name = $"Player {count}";
+            if (_runner.TryGetPlayerObject(p, out var obj) && obj.TryGetComponent<Player>(out var player))
+                name = player.DisplayName.ToString();
+            sb.AppendLine($"{name}{(p == _runner.LocalPlayer ? "  (you)" : "")}");
         }
 
         _playerListText.text = sb.Length > 0 ? sb.ToString() : "No players joined yet.";

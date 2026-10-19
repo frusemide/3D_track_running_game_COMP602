@@ -331,11 +331,7 @@ public class RaceHud : MonoBehaviour
             if (row != null) Destroy(row.gameObject);
         _spawnedRows.Clear();
 
-        // Stable per-seat numbering (join order), independent of finish order -- so
-        // "Player 2" doesn't change identity race to race just because standings shift.
-        // No real username system exists yet; this matches the mockup's placeholder
-        // "Player N" labelling until one does.
-        var joinOrder = RaceLogic.GetParticipants(_raceManager.Runner);
+        // The local player's row is marked with "(You)".
         var ranked = RaceLogic.RankParticipants(_raceManager.Runner);
 
         for (int i = 0; i < ranked.Count; i++)
@@ -343,7 +339,8 @@ public class RaceHud : MonoBehaviour
             Player p = ranked[i];
             bool isSelf = p == _localPlayer;
 
-            string name = isSelf ? "You" : $"Player {joinOrder.IndexOf(p) + 1}";
+            string displayName = p.DisplayName.ToString();
+            string name = isSelf ? $"{displayName} (You)" : displayName;
             string time = p.HasFinished ? FormatTime(TickSeconds(p.FinishTick)) : "--:--.---";
 
             var placementSprites = isSelf ? _resultsPlacementSpritesSelf : _resultsPlacementSpritesOpponent;

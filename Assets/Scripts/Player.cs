@@ -74,6 +74,9 @@ public class Player : NetworkBehaviour
     [Networked] public int FinishTick { get; set; }           // tick when finished (for ranking/time)// --- Race participation (Option 3: per-player race state) ---
     [Networked] public CelebrationState Celebration { get; set; }  // choosing celebration animation to play
 
+    // Username, set by the host and synced to all clients.
+    [Networked] public NetworkString<_32> DisplayName { get; set; }
+
     private void Awake()
     {
         _cc = GetComponent<NetworkCharacterController>();
@@ -88,7 +91,23 @@ public class Player : NetworkBehaviour
         _cc.maxSpeed = 100f;
 
         if (HasStateAuthority)
+        {
             _forward = Vector3.forward;   // networked default; was previously a field initializer
+            DisplayName = FallbackName();
+        }
+
+        // Send the name entered in the main menu to the host.
+        if (HasInputAuthority)
+        {
+            string typed = PlayerNameStore.Name;
+            if (HasStateAuthority)
+                ApplyDisplayName(typed);
+            else
+                RPC_SetDisplayName(typed);
+        }
+
+        if (GetComponent<PlayerNameTag>() == null)
+            gameObject.AddComponent<PlayerNameTag>();
 
         //Camera only set for local player
         if (Object.HasInputAuthority)
@@ -327,6 +346,24 @@ public class Player : NetworkBehaviour
         HasFinished = false;
         FinishTick = 0;
     }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    private void RPC_SetDisplayName(string requestedName)
+    {
+        ApplyDisplayName(requestedName);
+    }
+
+    // Host side. The name is sanitised again here as client input is not trusted.
+    private void ApplyDisplayName(string requestedName)
+    {
+        if (!HasStateAuthority) return;
+
+        string clean = PlayerNameStore.Sanitise(requestedName);
+        DisplayName = string.IsNullOrEmpty(clean) ? FallbackName() : clean;
+    }
+
+    // Default name when none was entered.
+    private string FallbackName() => $"Player {Object.InputAuthority.PlayerId}";
 
     public void SetForward(Vector3 forward)
     {
