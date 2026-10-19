@@ -21,6 +21,7 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private AudioClip _crowdCheerSound;
     [SerializeField] private AudioClip _buttonClickSound;
     [SerializeField] private AudioClip _ambienceSound;
+    [SerializeField] private AudioClip _countdownStartSound;  // Race start countdown sound
 
     [Header("Volume Settings")]
     [Range(0f, 1f)]
@@ -273,5 +274,48 @@ public class AudioManager : MonoBehaviour
             _ambienceSource.Stop();
             _isAmbiencePlaying = false;
         }
+    }
+
+    /// <summary>
+    /// Play the race start countdown sound effect
+    /// </summary>
+    public void PlayCountdownStartSound()
+    {
+        if (_countdownStartSound != null && _sfxSource != null)
+        {
+            // Temporarily lower pitch to slow down the countdown sound
+            float originalPitch = _sfxSource.pitch;
+            _sfxSource.pitch = 0.6f; // Slow down by 40%
+            _sfxSource.PlayOneShot(_countdownStartSound, _sfxVolume);
+            
+            // Reset pitch after the sound plays
+            StartCoroutine(ResetPitchAfterSound(originalPitch, _countdownStartSound.length / 0.6f));
+        }
+    }
+
+    private System.Collections.IEnumerator ResetPitchAfterSound(float originalPitch, float duration)
+    {
+        yield return new WaitForSeconds(duration);
+        if (_sfxSource != null)
+        {
+            _sfxSource.pitch = originalPitch;
+        }
+    }
+
+    /// <summary>
+    /// Play the race start countdown sound effect with a delay
+    /// </summary>
+    public void PlayCountdownStartSoundDelayed(float delay)
+    {
+        if (_countdownStartSound != null && _sfxSource != null)
+        {
+            StartCoroutine(PlayCountdownAfterDelay(delay));
+        }
+    }
+
+    private System.Collections.IEnumerator PlayCountdownAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        PlayCountdownStartSound();
     }
 }

@@ -161,6 +161,12 @@ public class RaceManager : NetworkBehaviour
     {
         Phase = RacePhase.Positioning;
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _positioningDuration);
+        
+        // Play race start countdown sound with 2.5 second delay to sync with ready.mp3
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayCountdownStartSoundDelayed(2.5f);
+        }
 
         Debug.Log("[RaceManager] EnterPositioning - Starting to enroll players...");
 
