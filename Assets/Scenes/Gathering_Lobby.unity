@@ -843,7 +843,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &49710207
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17220,6 +17220,76 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 884757942}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &888711269
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 888711271}
+  - component: {fileID: 888711270}
+  - component: {fileID: 888711272}
+  m_Layer: 0
+  m_Name: BotSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &888711270
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 888711269}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5617acaa4266004399035f5a09f309c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BotSpawner
+  _botPlayerPrefab:
+    RawGuidValue: 5e76497f5ef2d4e4589463cb97327616
+  _maxRacers: 8
+  _fillWithBots: 1
+  _botDifficultyDistribution: 000000000100000003000000020000000200000003000000
+--- !u!4 &888711271
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 888711269}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -15.63823, y: 0, z: 482.19357}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &888711272
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 888711269}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
+  SortKey: 2467387319
+  SendPriority: 1
+  EnableInterpolation: 1
+  Flags: 262146
+  NestedObjects: []
+  NetworkedBehaviours:
+  - {fileID: 888711270}
+  ForceRemoteRenderTimeframe: 0
 --- !u!1 &904355658
 GameObject:
   m_ObjectHideFlags: 0
@@ -18179,12 +18249,14 @@ MonoBehaviour:
   _spectatorArea: {fileID: 1310480511}
   _startNoticeBanner: {fileID: 0}
   _startNoticeDuration: 2.5
-  _randomWeather: 0
+  _randomWeather: 1
   _fixedWeather: 0
   _rainEffects: {fileID: 0}
+  _botSpawner: {fileID: 0}
   _Phase: 0
   _RaceStartTick: 0
   _Weather: 0
+  _RaceMusicIndex: 0
 --- !u!4 &932784033
 Transform:
   m_ObjectHideFlags: 0
@@ -21296,6 +21368,83 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1935441715}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1138356077
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1138356079}
+  - component: {fileID: 1138356078}
+  m_Layer: 0
+  m_Name: AudioManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1138356078
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1138356077}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f3f14b3677dbd4e408513a891075c0c4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioManager
+  _sfxSource: {fileID: 0}
+  _runningSource: {fileID: 0}
+  _crowdSource: {fileID: 0}
+  _ambienceSource: {fileID: 0}
+  _fallSound: {fileID: 8300000, guid: 19f72a639754dcf4d9096f6fad9727c4, type: 3}
+  _victorySound: {fileID: 8300000, guid: 8b2cb000244d55a4dacf535da5161727, type: 3}
+  _runningSound: {fileID: 8300000, guid: 07aa0f19e46769e4483da8a81e9de63b, type: 3}
+  _crowdCheerSound: {fileID: 8300000, guid: 31d4d2aef2aecca4fa2729e114c579c5, type: 3}
+  _buttonClickSound: {fileID: 8300000, guid: 9eda87a6ae4984f40bdf43cddc51ee1f, type: 3}
+  _ambienceSound: {fileID: 8300000, guid: 1c32f38bcc15b0942ab36e0816e0167e, type: 3}
+  _finishSound: {fileID: 8300000, guid: 88d1b1eb78341204c92fc8a6f6efd89f, type: 3}
+  _raceStartingSound: {fileID: 8300000, guid: af492bc9348df3f42b5b7280dcb728f4, type: 3}
+  _resultsSound: {fileID: 8300000, guid: 19e484000d5ef4d4d8e154c16a820a6c, type: 3}
+  _readySound: {fileID: 8300000, guid: 3e846ff8f8dd78646a226215864f3ab0, type: 3}
+  _setSound: {fileID: 8300000, guid: 9b7dbf74cf9079b4a8e022c13575be96, type: 3}
+  _goSound: {fileID: 8300000, guid: cc652464ec2da2543b27a88f2d259dd6, type: 3}
+  _lobbyMusic: {fileID: 8300000, guid: dc0c10694fb7368409241bc55683576b, type: 3}
+  _raceMusicTracks:
+  - {fileID: 8300000, guid: b773cfae8efd38346812b9bc095a3246, type: 3}
+  - {fileID: 8300000, guid: 075cedcdb0ff811468e7a640b278bf74, type: 3}
+  - {fileID: 8300000, guid: dca86557b55a89a42b0e6a43fd2afa4c, type: 3}
+  - {fileID: 8300000, guid: c63e198aba6b64d4c94ac0d21d3e811c, type: 3}
+  - {fileID: 8300000, guid: d6180c886206ecc4cb332addcbd21d3f, type: 3}
+  - {fileID: 8300000, guid: 4fdc3d1f99cca9048b99b84ece00d0c3, type: 3}
+  - {fileID: 8300000, guid: 76b2fb3cb80a6c14e88666f68b5b230a, type: 3}
+  - {fileID: 8300000, guid: 4c92f621fe6fdee49b2a0f378fd46cca, type: 3}
+  _lobbyMusicFadeIn: 3
+  _raceMusicFadeOut: 2
+  _sfxVolume: 0.681
+  _runningVolume: 0.315
+  _crowdVolume: 0.764
+  _ambienceVolume: 0.622
+  _musicVolume: 0.114
+--- !u!4 &1138356079
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1138356077}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -15.63823, y: 0, z: 482.19357}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1140400537
 GameObject:
@@ -38970,6 +39119,30 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 4376512994566341155, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 3.814
+      objectReference: {fileID: 0}
+    - target: {fileID: 4376512994566341155, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4376512994566341155, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -3.669
+      objectReference: {fileID: 0}
+    - target: {fileID: 4376512994566341155, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7422767
+      objectReference: {fileID: 0}
+    - target: {fileID: 4376512994566341155, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.6700935
+      objectReference: {fileID: 0}
+    - target: {fileID: 4376512994566341155, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: -84.149
+      objectReference: {fileID: 0}
     - target: {fileID: 6348208017469178554, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
       propertyPath: m_LocalPosition.x
       value: -1.77
@@ -39014,6 +39187,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: Podium
       objectReference: {fileID: 0}
+    - target: {fileID: 6439704093380844737, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.999
+      objectReference: {fileID: 0}
+    - target: {fileID: 7137337814058115837, guid: 416f72ac9ae084f439c20621eb8224d0, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.997
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -39044,3 +39225,5 @@ SceneRoots:
   - {fileID: 514059880}
   - {fileID: 146756156}
   - {fileID: 49710209}
+  - {fileID: 1138356079}
+  - {fileID: 888711271}

@@ -1,150 +1,149 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Randomizes bot body colors on spawn to make them visually distinct.
-/// Finds SkinnedMeshRenderer components and applies random colors to body materials.
+/// Gives AI bots a random body colour, and optionally a random head item and shoes, from the
+/// CosmeticDatabase so they're visually distinct.
+///
+/// Works through PlayerCustomisation, so the choices are stored as networked item indices:
+/// every client sees the same loadout, and CosmeticVisuals does the actual recolouring and
+/// attaching (including animating a Rainbow item). Runs on the host only.
+///
+/// Note: head items and shoes carry stats (and shoes give weather protection), so bots
+/// wearing them race with those bonuses, exactly like players. Tick Stat Free Items Only
+/// if accessories should be for looks only.
+///
+/// BotSpawner adds this component at runtime if the bot prefab doesn't already have it.
+/// Add it to the Player prefab yourself if you want to change the settings below.
 /// </summary>
 public class BotColorizer : MonoBehaviour
 {
-    [Header("Color Palette")]
-    [SerializeField] private Color[] _bodyColors = new Color[]
-    {
-        new Color(0.2f, 0.6f, 1.0f),    // Blue
-        new Color(1.0f, 0.3f, 0.3f),    // Red
-        new Color(0.3f, 1.0f, 0.4f),    // Green
-        new Color(1.0f, 0.8f, 0.2f),    // Yellow
-        new Color(1.0f, 0.5f, 0.0f),    // Orange
-        new Color(0.6f, 0.2f, 1.0f),    // Purple
-        new Color(1.0f, 0.4f, 0.7f),    // Pink
-        new Color(0.2f, 0.9f, 0.9f),    // Cyan
-        new Color(0.9f, 0.5f, 0.2f),    // Brown
-        new Color(0.5f, 0.5f, 0.5f)     // Gray
-    };
+    [Header("Colour choice")]
+    [Tooltip("Tick to stop bots getting the first colour in the database (the default player colour). Unticked, the default colour is one of the random options.")]
+    [SerializeField] private bool _skipDefaultColour = false;
 
-    [Header("Material Names to Colorize")]
-    [Tooltip("Names of materials that should be colorized (e.g., 'NewPlayerMain', 'Body')")]
-    [SerializeField] private string[] _materialNamePatterns = new string[]
-    {
-        "NewPlayerMain",
-        "PlayerMain",
-        "Body",
-        "Shirt",
-        "Torso"
-    };
+    [Tooltip("Allow bots to get Rainbow colour items.")]
+    [SerializeField] private bool _allowRainbow = true;
 
-    private void Start()
-    {
-        // Only colorize if this is a bot
-        AIRacer aiRacer = GetComponent<AIRacer>();
-        if (aiRacer != null && aiRacer.IsBotControlled)
-        {
-            ApplyRandomColor();
-        }
-    }
+    [Header("Accessories")]
+    [Tooltip("Chance (0 to 1) that a bot wears a random head item. 0 = never, 1 = always.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float _headItemChance = 0.5f;
 
-    public void ApplyRandomColor()
+    [Tooltip("Chance (0 to 1) that a bot wears random shoes. 0 = never, 1 = always.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float _shoesChance = 0.5f;
+
+    [Tooltip("Only give bots head items and shoes with no stat bonuses, so accessories don't change how fast they race.")]
+    [SerializeField] private bool _statFreeItemsOnly = false;
+
+    /// <summary>
+    /// Picks a random colour from the CosmeticDatabase and applies it to this bot.
+    /// Colours in coloursInUse are avoided until every colour has been used once.
+    /// Must be called on the host, before the bot starts racing (the loadout locks mid-race).
+    /// Returns the chosen colour index, or -1 if no colour could be applied.
+    /// </summary>
+    public int ApplyRandomColour(ICollection<int> coloursInUse = null)
     {
-        // Pick a random color from the palette
-        Color randomColor = _bodyColors[Random.Range(0, _bodyColors.Length)];
-        
-        // Find all SkinnedMeshRenderers in children (where character model usually is)
-        SkinnedMeshRenderer[] renderers = GetComponentsInChildren<SkinnedMeshRenderer>();
-        
-        bool colorApplied = false;
-        
-        foreach (var renderer in renderers)
+        PlayerCustomisation customisation = GetComponent<PlayerCustomisation>();
+        if (customisation == null)
         {
-            // Check each material on this renderer
-            Material[] materials = renderer.materials;
-            
-            for (int i = 0; i < materials.Length; i++)
-            {
-                // Check if this material name matches our patterns
-                foreach (string pattern in _materialNamePatterns)
-                {
-                    if (materials[i].name.Contains(pattern))
-                    {
-                        // Create a unique material instance for this bot (don't share materials)
-                        Material uniqueMaterial = new Material(materials[i]);
-                        uniqueMaterial.color = randomColor;
-                        materials[i] = uniqueMaterial;
-                        colorApplied = true;
-                        
-                        Debug.Log($"[BotColorizer] Applied color {randomColor} to material {materials[i].name}");
-                    }
-                }
-            }
-            
-            // Apply the modified materials array back to the renderer
-            if (colorApplied)
-            {
-                renderer.materials = materials;
-            }
+            Debug.LogWarning($"[BotColorizer] {gameObject.name} has no PlayerCustomisation component.");
+            return -1;
         }
-        
-        // Also check regular MeshRenderers (in case character uses those)
-        if (!colorApplied)
+
+        if (!customisation.HasStateAuthority)
+            return -1;   // only the host changes loadouts; clients receive the result
+
+        List<int> candidates = GetCandidateColours(customisation.Database);
+        if (candidates.Count == 0)
         {
-            MeshRenderer[] meshRenderers = GetComponentsInChildren<MeshRenderer>();
-            
-            foreach (var renderer in meshRenderers)
-            {
-                Material[] materials = renderer.materials;
-                
-                for (int i = 0; i < materials.Length; i++)
-                {
-                    foreach (string pattern in _materialNamePatterns)
-                    {
-                        if (materials[i].name.Contains(pattern))
-                        {
-                            Material uniqueMaterial = new Material(materials[i]);
-                            uniqueMaterial.color = randomColor;
-                            materials[i] = uniqueMaterial;
-                            colorApplied = true;
-                            
-                            Debug.Log($"[BotColorizer] Applied color {randomColor} to material {materials[i].name}");
-                        }
-                    }
-                }
-                
-                if (colorApplied)
-                {
-                    renderer.materials = materials;
-                }
-            }
+            Debug.LogWarning("[BotColorizer] No usable colours in the Cosmetic Database. Check the Colours list and Unlocked By Default.");
+            return -1;
         }
-        
-        if (!colorApplied)
+
+        // Prefer a colour no other bot has yet; once they're all taken, allow repeats.
+        List<int> pool = candidates;
+        if (coloursInUse != null)
         {
-            Debug.LogWarning($"[BotColorizer] No matching materials found on {gameObject.name}. Check material name patterns.");
+            List<int> unused = candidates.FindAll(i => !coloursInUse.Contains(i));
+            if (unused.Count > 0)
+                pool = unused;
         }
+
+        int colourIndex = pool[Random.Range(0, pool.Count)];
+        customisation.SetItem(CosmeticSlot.Colour, colourIndex);
+
+        CosmeticItem item = customisation.Database.Colours[colourIndex];
+        Debug.Log($"[BotColorizer] {gameObject.name} assigned colour {colourIndex} ({item.DisplayName})");
+        return colourIndex;
     }
 
     /// <summary>
-    /// Call this to apply a specific color instead of random
+    /// Randomly gives this bot a head item and/or shoes, using Head Item Chance and Shoes Chance.
+    /// Must be called on the host, before the bot starts racing (the loadout locks mid-race).
     /// </summary>
-    public void ApplyColor(Color color)
+    public void ApplyRandomAccessories()
     {
-        SkinnedMeshRenderer[] renderers = GetComponentsInChildren<SkinnedMeshRenderer>();
-        
-        foreach (var renderer in renderers)
+        PlayerCustomisation customisation = GetComponent<PlayerCustomisation>();
+        if (customisation == null || !customisation.HasStateAuthority)
+            return;
+
+        TryEquipRandom(customisation, CosmeticSlot.Head, _headItemChance);
+        TryEquipRandom(customisation, CosmeticSlot.Feet, _shoesChance);
+    }
+
+    private void TryEquipRandom(PlayerCustomisation customisation, CosmeticSlot slot, float chance)
+    {
+        if (Random.value >= chance)
+            return;   // this bot goes without (stays at -1, nothing equipped)
+
+        CosmeticDatabase database = customisation.Database;
+        CosmeticItem[] items = database != null ? database.GetItems(slot) : null;
+        if (items == null)
+            return;
+
+        var candidates = new List<int>();
+        for (int i = 0; i < items.Length; i++)
         {
-            Material[] materials = renderer.materials;
-            
-            for (int i = 0; i < materials.Length; i++)
-            {
-                foreach (string pattern in _materialNamePatterns)
-                {
-                    if (materials[i].name.Contains(pattern))
-                    {
-                        Material uniqueMaterial = new Material(materials[i]);
-                        uniqueMaterial.color = color;
-                        materials[i] = uniqueMaterial;
-                    }
-                }
-            }
-            
-            renderer.materials = materials;
+            CosmeticItem item = items[i];
+            if (item == null || !item.UnlockedByDefault) continue;   // PlayerCustomisation rejects these
+            if (_statFreeItemsOnly && HasStats(item)) continue;
+            candidates.Add(i);
         }
+
+        if (candidates.Count == 0)
+            return;
+
+        int index = candidates[Random.Range(0, candidates.Count)];
+        customisation.SetItem(slot, index);
+        Debug.Log($"[BotColorizer] {gameObject.name} equipped {slot}: {items[index].DisplayName}");
+    }
+
+    private static bool HasStats(CosmeticItem item)
+    {
+        ItemStats s = item.Stats;
+        return s.TopSpeed != 0 || s.Acceleration != 0 || s.Boost != 0 || s.Grip != 0 || s.Recovery != 0
+            || item.SuitedWeather != WeatherType.Clear;
+    }
+
+    // Colour indices a bot is allowed to use. Matches what PlayerCustomisation accepts:
+    // only real items that are unlocked by default.
+    private List<int> GetCandidateColours(CosmeticDatabase database)
+    {
+        var candidates = new List<int>();
+        if (database == null || database.Colours == null)
+            return candidates;
+
+        for (int i = 0; i < database.Colours.Length; i++)
+        {
+            CosmeticItem item = database.Colours[i];
+            if (item == null || !item.UnlockedByDefault) continue;
+            if (_skipDefaultColour && i == 0) continue;
+            if (item.Rainbow && !_allowRainbow) continue;
+            candidates.Add(i);
+        }
+
+        return candidates;
     }
 }

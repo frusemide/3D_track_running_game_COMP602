@@ -477,6 +477,14 @@ public class Player : NetworkBehaviour
                 case nameof(Celebration):
                     OnCelebrationChanged(Celebration);
                     break;
+
+                case nameof(HasFinished):
+                    // Finish line sound for the local player only (bots and other players are silent).
+                    if (HasFinished && Object.HasInputAuthority && AudioManager.Instance != null)
+                    {
+                        AudioManager.Instance.PlayFinishSound();
+                    }
+                    break;
             }
         }
     }
@@ -551,7 +559,7 @@ public class Player : NetworkBehaviour
                 }
                 break;
             case CelebrationState.Clapping:
-                _animator.SetTrigger("Clap");
+                _animator.SetTrigger("Clapping");
                 
                 if (Object.HasInputAuthority && AudioManager.Instance != null)
                 {

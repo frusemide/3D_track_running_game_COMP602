@@ -18,6 +18,7 @@ public class BotSpawner : NetworkBehaviour
     [SerializeField] private int[] _botDifficultyDistribution = new int[] { 0, 1, 1, 2, 2, 3 };
 
     private List<Player> _spawnedBots = new List<Player>();
+    private HashSet<int> _coloursInUse = new HashSet<int>();   // so each bot gets a different colour where possible
     private RaceManager _raceManager;
 
     public override void Spawned()
@@ -64,6 +65,7 @@ public class BotSpawner : NetworkBehaviour
         }
         
         _spawnedBots.Clear();
+        _coloursInUse.Clear();
         Debug.Log("All bots despawned");
     }
 
@@ -130,21 +132,24 @@ public class BotSpawner : NetworkBehaviour
             int difficultyIndex = _botDifficultyDistribution[Random.Range(0, _botDifficultyDistribution.Length)];
             aiComponent.InitializeBot(difficultyIndex);
 
-            // Apply random color using PlayerCustomisation
-            // We need to delay this slightly so PlayerCustomisation.Spawned() runs first
-            PlayerCustomisation customisation = botObject.GetComponent<PlayerCustomisation>();
-            if (customisation != null)
+            // Give the bot a random colour from the CosmeticDatabase (see BotColorizer).
+            // This must happen now, straight after Runner.Spawn: PlayerCustomisation.Spawned()
+            // has already run on the host, and the loadout locks once RaceManager calls
+            // StartRacing().
+            BotColorizer colorizer = botObject.GetComponent<BotColorizer>();
+            if (colorizer == null)
             {
-                // Pick a random color index (1-5, excluding white at index 0)
-                int randomColorIndex = Random.Range(1, CustomisationCatalogue.BodyColours.Length);
-                
-                // Delay color application to next frame so Spawned() runs first
-                StartCoroutine(ApplyBotColorDelayed(customisation, randomColorIndex, index));
+                colorizer = botObject.gameObject.AddComponent<BotColorizer>();
             }
-            else
+
+            int colourIndex = colorizer.ApplyRandomColour(_coloursInUse);
+            if (colourIndex >= 0)
             {
-                Debug.LogWarning($"Bot #{index + 1} has no PlayerCustomisation component!");
+                _coloursInUse.Add(colourIndex);
             }
+
+            // Random head item and/or shoes (chances are set on BotColorizer).
+            colorizer.ApplyRandomAccessories();
 
             _spawnedBots.Add(player);
             
@@ -184,17 +189,7 @@ public class BotSpawner : NetworkBehaviour
         }
     }
 
+    public IReadOnlyList<Player> SpawnedBots => _spawnedBots;
     public int BotCount => _spawnedBots.Count;
     public int MaxRacers => _maxRacers;
-
-    // Coroutine to apply bot color after a short delay (allows PlayerCustomisation.Spawned() to run first)
-    private System.Collections.IEnumerator ApplyBotColorDelayed(PlayerCustomisation customisation, int colorIndex, int botIndex)
-    {
-        // Wait one frame for Spawned() to complete
-        yield return null;
-        
-        // Now apply the color
-        customisation.SetBodyColour(colorIndex);
-        Debug.Log($"Bot #{botIndex + 1} assigned color index {colorIndex}");
-    }
 }

@@ -38,6 +38,9 @@ public class PlayerCustomisation : NetworkBehaviour
         // Visuals are applied in Render() -- including for late joiners.
     }
 
+    // The item lists this player picks from (read by BotColorizer to choose a bot colour).
+    public CosmeticDatabase Database => _database;
+
     // --- Host-side ---
 
     public void SetItem(CosmeticSlot slot, int index)

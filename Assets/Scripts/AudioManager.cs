@@ -21,7 +21,29 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private AudioClip _crowdCheerSound;
     [SerializeField] private AudioClip _buttonClickSound;
     [SerializeField] private AudioClip _ambienceSound;
-    [SerializeField] private AudioClip _countdownStartSound;  // Race start countdown sound
+    [SerializeField] private AudioClip _finishSound;          // Local player crosses the finish line (separate from the podium victory sound)
+    [SerializeField] private AudioClip _raceStartingSound;    // Host started a race ("race about to start" banner appears)
+    [SerializeField] private AudioClip _resultsSound;         // Results screen appears (race over, standings shown)
+
+    [Header("Countdown (Ready / Set / GO!)")]
+    [Tooltip("Plays when the \"Ready\" banner appears.")]
+    [SerializeField] private AudioClip _readySound;
+    [Tooltip("Plays when the banner switches to \"Set\".")]
+    [SerializeField] private AudioClip _setSound;
+    [Tooltip("Plays on \"GO!\", the moment the race starts.")]
+    [SerializeField] private AudioClip _goSound;
+
+    [Header("Background Music")]
+    [Tooltip("Loops while in the gathering lobby. Fades in on arrival.")]
+    [SerializeField] private AudioClip _lobbyMusic;
+    [Tooltip("Race music tracks. Starts when players are moved to the start line, plays through the countdown and race, and fades out when you finish. Silent on the results and podium. One is picked at random for each race, never the same one twice in a row when there are several, and every player hears the same track.")]
+    [SerializeField] private AudioClip[] _raceMusicTracks;
+    [Tooltip("Seconds the lobby music takes to fade in when you arrive in the lobby.")]
+    [Min(0f)]
+    [SerializeField] private float _lobbyMusicFadeIn = 3f;
+    [Tooltip("Seconds the race music takes to fade out once you finish the race.")]
+    [Min(0f)]
+    [SerializeField] private float _raceMusicFadeOut = 2f;
 
     [Header("Volume Settings")]
     [Range(0f, 1f)]
@@ -32,10 +54,19 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private float _crowdVolume = 0.25f;   // Crowd sound volume (halved)
     [Range(0f, 1f)]
     [SerializeField] private float _ambienceVolume = 0.15f; // Very low ambient background
+    [Range(0f, 1f)]
+    [SerializeField] private float _musicVolume = 0.3f;     // Background music (lobby + race)
 
     private bool _isRunningPlaying = false;
     private bool _isCrowdPlaying = false;
     private bool _isAmbiencePlaying = false;
+
+    // Background music: one looping source, switched between tracks by SetMusic().
+    public enum MusicTrack { None, Lobby, Race }
+    private AudioSource _musicSource;
+    private AudioClip _wantedMusic;        // clip SetMusic last asked for (null = silence)
+    private float _musicTargetVolume;      // volume the music is fading towards
+    private float _musicFadeRate;          // volume change per second (0 = jump straight there)
 
     private void Awake()
     {
@@ -77,6 +108,10 @@ public class AudioManager : MonoBehaviour
             _ambienceSource.playOnAwake = false;
         }
 
+        _musicSource = gameObject.AddComponent<AudioSource>();
+        _musicSource.loop = true;
+        _musicSource.playOnAwake = false;
+
         UpdateVolumes();
         
         // Start ambience immediately when game starts
@@ -96,6 +131,107 @@ public class AudioManager : MonoBehaviour
 
         if (_ambienceSource != null)
             _ambienceSource.volume = _ambienceVolume;
+
+        // Music volume is driven by the fade in Update(); just retarget an audible track.
+        if (_musicSource != null && _wantedMusic != null)
+            _musicTargetVolume = _musicVolume;
+    }
+
+    /// <summary>How many race music tracks are assigned (RaceManager uses this to pick one).</summary>
+    public int RaceMusicTrackCount => _raceMusicTracks != null ? _raceMusicTracks.Length : 0;
+
+    /// <summary>
+    /// Switch the background music. Safe to call every frame: it only acts when the wanted
+    /// track changes. Lobby music fades in; race music starts at full volume; switching to
+    /// MusicTrack.None after race music fades it out (Race Music Fade Out), otherwise stops it.
+    /// </summary>
+    public void SetMusic(MusicTrack track, int raceTrackIndex = 0)
+    {
+        if (_musicSource == null)
+            return;
+
+        AudioClip clip = track == MusicTrack.Lobby ? _lobbyMusic
+                       : track == MusicTrack.Race ? GetRaceTrack(raceTrackIndex)
+                       : null;
+
+        if (clip == _wantedMusic)
+            return;   // nothing changed
+
+        bool wasRaceMusic = _wantedMusic != null && _wantedMusic != _lobbyMusic;
+        _wantedMusic = clip;
+
+        if (clip == null)
+        {
+            // Silence: fade race music out, cut anything else straight away.
+            StartMusicFade(0f, wasRaceMusic ? _raceMusicFadeOut : 0f);
+            return;
+        }
+
+        // New track: start it from the beginning.
+        _musicSource.Stop();
+        _musicSource.clip = clip;
+
+        if (track == MusicTrack.Lobby)
+        {
+            _musicSource.volume = 0f;
+            StartMusicFade(_musicVolume, _lobbyMusicFadeIn);
+        }
+        else
+        {
+            _musicSource.volume = _musicVolume;
+            StartMusicFade(_musicVolume, 0f);
+        }
+
+        _musicSource.Play();
+    }
+
+    private void StartMusicFade(float targetVolume, float seconds)
+    {
+        _musicTargetVolume = targetVolume;
+        float distance = Mathf.Abs(_musicSource.volume - targetVolume);
+        _musicFadeRate = seconds > 0f ? Mathf.Max(distance, 0.0001f) / seconds : 0f;
+    }
+
+    // Runs the music fades. Unscaled time, so fades still work if the game is paused.
+    private void Update()
+    {
+        if (_musicSource == null)
+            return;
+
+        float volume = _musicSource.volume;
+        if (!Mathf.Approximately(volume, _musicTargetVolume))
+        {
+            _musicSource.volume = _musicFadeRate > 0f
+                ? Mathf.MoveTowards(volume, _musicTargetVolume, _musicFadeRate * Time.unscaledDeltaTime)
+                : _musicTargetVolume;
+        }
+
+        // Faded all the way out with nothing wanted: stop the source.
+        if (_wantedMusic == null && _musicSource.isPlaying && _musicSource.volume <= 0.0001f)
+        {
+            _musicSource.Stop();
+            _musicSource.clip = null;
+        }
+    }
+
+    // The race track at this index, or null if there are none (out-of-range indices wrap).
+    private AudioClip GetRaceTrack(int index)
+    {
+        int count = RaceMusicTrackCount;
+        if (count == 0)
+            return null;
+
+        index = ((index % count) + count) % count;
+        return _raceMusicTracks[index];
+    }
+
+    /// <summary>
+    /// Set master volume for background music
+    /// </summary>
+    public void SetMusicMasterVolume(float volume)
+    {
+        _musicVolume = Mathf.Clamp01(volume);
+        UpdateVolumes();
     }
 
     /// <summary>
@@ -117,6 +253,21 @@ public class AudioManager : MonoBehaviour
         if (_victorySound != null && _sfxSource != null)
         {
             _sfxSource.PlayOneShot(_victorySound, _sfxVolume);
+        }
+    }
+
+    /// <summary>
+    /// Play the finish line sound effect (local player crossed the line)
+    /// </summary>
+    public void PlayFinishSound()
+    {
+        if (_finishSound != null && _sfxSource != null)
+        {
+            _sfxSource.PlayOneShot(_finishSound, _sfxVolume);
+        }
+        else if (_finishSound == null)
+        {
+            Debug.LogWarning("[AudioManager] No Finish Sound assigned. Drag a clip into the Finish Sound slot on the AudioManager object.");
         }
     }
 
@@ -276,46 +427,36 @@ public class AudioManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Play the race start countdown sound effect
-    /// </summary>
-    public void PlayCountdownStartSound()
-    {
-        if (_countdownStartSound != null && _sfxSource != null)
-        {
-            // Temporarily lower pitch to slow down the countdown sound
-            float originalPitch = _sfxSource.pitch;
-            _sfxSource.pitch = 0.6f; // Slow down by 40%
-            _sfxSource.PlayOneShot(_countdownStartSound, _sfxVolume);
-            
-            // Reset pitch after the sound plays
-            StartCoroutine(ResetPitchAfterSound(originalPitch, _countdownStartSound.length / 0.6f));
-        }
-    }
+    // --- Countdown: one sound per banner (called by RaceHud when the banner changes) ---
 
-    private System.Collections.IEnumerator ResetPitchAfterSound(float originalPitch, float duration)
+    /// <summary>Play the "Ready" countdown sound</summary>
+    public void PlayReadySound() => PlaySfx(_readySound);
+
+    /// <summary>Play the "Set" countdown sound</summary>
+    public void PlaySetSound() => PlaySfx(_setSound);
+
+    /// <summary>Play the "GO!" countdown sound</summary>
+    public void PlayGoSound() => PlaySfx(_goSound);
+
+    /// <summary>Play the results screen sound (when the race ends and standings are shown)</summary>
+    public void PlayResultsSound() => PlaySfx(_resultsSound);
+
+    private void PlaySfx(AudioClip clip)
     {
-        yield return new WaitForSeconds(duration);
-        if (_sfxSource != null)
+        if (clip != null && _sfxSource != null)
         {
-            _sfxSource.pitch = originalPitch;
+            _sfxSource.PlayOneShot(clip, _sfxVolume);
         }
     }
 
     /// <summary>
-    /// Play the race start countdown sound effect with a delay
+    /// Play the "race about to start" sound (when the host starts a race and the banner appears)
     /// </summary>
-    public void PlayCountdownStartSoundDelayed(float delay)
+    public void PlayRaceStartingSound()
     {
-        if (_countdownStartSound != null && _sfxSource != null)
+        if (_raceStartingSound != null && _sfxSource != null)
         {
-            StartCoroutine(PlayCountdownAfterDelay(delay));
+            _sfxSource.PlayOneShot(_raceStartingSound, _sfxVolume);
         }
-    }
-
-    private System.Collections.IEnumerator PlayCountdownAfterDelay(float delay)
-    {
-        yield return new WaitForSeconds(delay);
-        PlayCountdownStartSound();
     }
 }
