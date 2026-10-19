@@ -99,7 +99,8 @@ public class RaceConsolePanel : MonoBehaviour
         {
             count++;
             string name = $"Player {count}";
-            if (_runner.TryGetPlayerObject(p, out var obj) && obj.TryGetComponent<Player>(out var player))
+            Player player = Player.FindByPlayerRef(p);
+            if (player != null)
                 name = player.DisplayName.ToString();
             sb.AppendLine($"{name}{(p == _runner.LocalPlayer ? "  (you)" : "")}");
         }
