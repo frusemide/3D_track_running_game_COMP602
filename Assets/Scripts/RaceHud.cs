@@ -86,6 +86,7 @@ public class RaceHud : MonoBehaviour
 
     private RaceManager _raceManager;
     private Player _localPlayer;
+    private int _lastRecordedRaceStartTick = -1;
     private readonly List<ResultsRowView> _spawnedRows = new List<ResultsRowView>();
     private bool _resultsBuilt;
 
@@ -106,6 +107,8 @@ public class RaceHud : MonoBehaviour
 
         if (_localPlayer == null)
             _localPlayer = FindLocalPlayer();
+
+        RecordLocalSprintResult();
 
         UpdateRaceOnlyVisibility();
         UpdateCountdownBanner();
@@ -280,6 +283,49 @@ public class RaceHud : MonoBehaviour
         if (_crownIcon != null)
             _crownIcon.SetActive(placement == 0);
     }
+
+private void RecordLocalSprintResult()
+{
+    if (_localPlayer == null || !_localPlayer.HasFinished)
+        return;
+
+    if (SprintLeaderboardManager.Instance == null)
+    {
+        Debug.LogWarning(
+            "SprintLeaderboardManager is missing from the scene.");
+        return;
+    }
+
+    int raceStartTick = _raceManager.RaceStartTick;
+
+    // Prevent recording the same race more than once.
+    if (_lastRecordedRaceStartTick == raceStartTick)
+        return;
+
+    float finalTime = TickSeconds(_localPlayer.FinishTick);
+
+    string mapId =
+        UnityEngine.SceneManagement.SceneManager
+            .GetActiveScene().name;
+
+    SprintLeaderboardManager.Instance.RecordSprintTime(
+        mapId, finalTime);
+
+    _lastRecordedRaceStartTick = raceStartTick;
+
+    SprintLeaderboardUI leaderboardUI =
+        FindFirstObjectByType<SprintLeaderboardUI>();
+
+    if (leaderboardUI != null)
+    {
+        leaderboardUI.SetMap(mapId);
+        leaderboardUI.RefreshLeaderboard();
+    }
+
+    Debug.Log(
+        $"Sprint recorded: {mapId} - " +
+        $"{SprintLeaderboardManager.FormatTime(finalTime)}");
+}
 
     // Shared clamp-to-last-assigned lookup, used against whichever sprite set (RaceUI or
     // ResultsUI) the caller is drawing from.
