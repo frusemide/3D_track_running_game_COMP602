@@ -385,6 +385,28 @@ public class Player : NetworkBehaviour
             BanManager.Instance.OnBannedByHost();
     }
 
+    // Finds the character controlled by this machine. Works on the host and on clients.
+    public static Player FindLocal()
+    {
+        foreach (var p in FindObjectsByType<Player>(FindObjectsSortMode.None))
+        {
+            if (p.Object != null && p.Object.IsValid && p.Object.HasInputAuthority)
+                return p;
+        }
+        return null;
+    }
+
+    // Finds the character owned by a given player. Works on the host and on clients.
+    public static Player FindByPlayerRef(PlayerRef player)
+    {
+        foreach (var p in FindObjectsByType<Player>(FindObjectsSortMode.None))
+        {
+            if (p.Object != null && p.Object.IsValid && p.Object.InputAuthority == player)
+                return p;
+        }
+        return null;
+    }
+
     // Host side. Sets the name directly, e.g. for bots.
     public void SetDisplayName(string displayName)
     {

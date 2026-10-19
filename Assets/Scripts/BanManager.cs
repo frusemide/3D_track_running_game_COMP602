@@ -66,7 +66,8 @@ public class BanManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public string GetPlayerName(PlayerRef player)
     {
-        if (_runner != null && _runner.TryGetPlayerObject(player, out var obj) && obj.TryGetComponent<Player>(out var p))
+        Player p = Player.FindByPlayerRef(player);
+        if (p != null)
             return p.DisplayName.ToString();
         return $"Player {player.PlayerId}";
     }
@@ -85,8 +86,9 @@ public class BanManager : MonoBehaviour, INetworkRunnerCallbacks
         else
             BanList.Ban(deviceId, playerName);
 
-        if (_runner.TryGetPlayerObject(player, out var obj) && obj.TryGetComponent<Player>(out var p))
-            p.NotifyBanned();
+        Player target = Player.FindByPlayerRef(player);
+        if (target != null)
+            target.NotifyBanned();
 
         StartCoroutine(DisconnectAfterDelay(_runner, player));
         ShowNotice($"{playerName} has been banned.");
