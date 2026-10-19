@@ -77,6 +77,10 @@ public class Player : NetworkBehaviour
     // Username, set by the host and synced to all clients.
     [Networked] public NetworkString<_32> DisplayName { get; set; }
 
+    // Finishing position assigned by the host (1 = first). Racers who cross the line on the
+    // same tick are ordered at random, so every client ranks ties the same way.
+    [Networked] public int FinishOrder { get; set; }
+
     private void Awake()
     {
         _cc = GetComponent<NetworkCharacterController>();
@@ -321,6 +325,7 @@ public class Player : NetworkBehaviour
         IsRacing = true;
         HasFinished = false;
         FinishTick = 0;
+        FinishOrder = 0;
     }
 
     public void SetCelebration(CelebrationState state)
@@ -330,12 +335,15 @@ public class Player : NetworkBehaviour
     }
 
     // Called (host-side) when this player crosses the finish line.
-    public void RecordFinish(int tick)
+    public void RecordFinish(int tick) => RecordFinish(tick, 0);
+
+    public void RecordFinish(int tick, int finishOrder)
     {
         if (!HasStateAuthority) return;
         if (!IsRacing || HasFinished) return;   // only finish once, only if racing
         HasFinished = true;
         FinishTick = tick;
+        FinishOrder = finishOrder;
     }
 
     // Called by a coordinator to clear race state (race over / left / reset).
@@ -345,6 +353,7 @@ public class Player : NetworkBehaviour
         IsRacing = false;
         HasFinished = false;
         FinishTick = 0;
+        FinishOrder = 0;
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]

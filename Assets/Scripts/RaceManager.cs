@@ -277,13 +277,28 @@ public class RaceManager : NetworkBehaviour
     private void CheckFinishes()
     {
         var participants = RaceLogic.GetParticipants(Runner);
+
+        int finishedSoFar = 0;
+        var crossedThisTick = new System.Collections.Generic.List<Player>();
         foreach (var p in participants)
         {
-            if (!p.HasFinished && p.transform.position.z >= _finishZ)
-            {
-                Debug.Log("  -> RecordFinish!");
-                p.RecordFinish(Runner.Tick);
-            }
+            if (p.HasFinished)
+                finishedSoFar++;
+            else if (p.transform.position.z >= _finishZ)
+                crossedThisTick.Add(p);
+        }
+
+        // Racers crossing on the same tick are tied, so their finishing order is drawn at random.
+        for (int i = crossedThisTick.Count - 1; i > 0; i--)
+        {
+            int j = UnityEngine.Random.Range(0, i + 1);
+            (crossedThisTick[i], crossedThisTick[j]) = (crossedThisTick[j], crossedThisTick[i]);
+        }
+
+        foreach (var p in crossedThisTick)
+        {
+            finishedSoFar++;
+            p.RecordFinish(Runner.Tick, finishedSoFar);
         }
     }
 

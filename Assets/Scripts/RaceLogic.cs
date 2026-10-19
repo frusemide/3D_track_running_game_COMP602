@@ -54,9 +54,13 @@ public static class RaceLogic
             // Finishers rank ahead of non-finishers.
             if (a.HasFinished && !b.HasFinished) return -1;
             if (!a.HasFinished && b.HasFinished) return 1;
-            // Both finished: earlier tick wins.
+            // Both finished: the host-assigned finishing order wins, which also settles ties.
             if (a.HasFinished && b.HasFinished)
+            {
+                if (a.FinishOrder > 0 && b.FinishOrder > 0)
+                    return a.FinishOrder.CompareTo(b.FinishOrder);
                 return a.FinishTick.CompareTo(b.FinishTick);
+            }
             // Neither finished yet: rank by current race progress (further along wins).
             // Keeps this consistent with the progress-bar leader/crown logic in RaceHud,
             // and makes RankParticipants meaningful mid-race, not just once people finish.
