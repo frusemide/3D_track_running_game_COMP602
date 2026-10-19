@@ -51,12 +51,26 @@ public class Player : NetworkBehaviour
     [SerializeField] private float _tooFastStepInterval = 0.18f;
     [SerializeField] private float _tooSlowStepInterval = 0.7f;
 
+    // Equipped cosmetics adjust the tunables above (see HandleTwoKeyRace); weather and
+    // slippery patches adjust them further through RaceModifiers.
+    // Items with all-zero stats leave the race exactly as tuned here.
+    [Header("Cosmetic stat effects")]
+    [Tooltip("How much each Top Speed / Acceleration point changes its race value, e.g. 0.04 = 4% per point.")]
+    [SerializeField, Range(0f, 0.2f)] private float _percentPerStatPoint = 0.04f;
+    [Tooltip("How much each Recovery point shortens a stumble, e.g. 0.10 = 10% per point. " +
+             "Applies to both the slide (stops sooner) and the lockout (gets up sooner).")]
+    [SerializeField, Range(0f, 0.3f)] private float _recoveryPercentPerPoint = 0.10f;
+    [Tooltip("The Recovery stat can never shorten the stumble lockout below this (seconds).")]
+    [SerializeField] private float _minRecoveryLockout = 0.4f;
+
     private NetworkCharacterController _cc;
     [Networked] private Vector3 _forward { get; set; }
     private RaceManager _raceManager;
     private Animator _animator;
     private PracticeController _practice;
     private ChangeDetector _changeDetector;
+    private PlayerCustomisation _customisation;
+    private bool _wasOnSlipPatch;   // host-side, only for the enter/leave log
 
     // Per-player networked practice flag (lobby two-key at practice starts).
     [Networked] public NetworkBool InPracticeMode { get; set; }
@@ -66,6 +80,8 @@ public class Player : NetworkBehaviour
     // 0 = none yet, 1 = pedal A, 2 = pedal B. Which pedal was last accepted, for alternation.
     [Networked] private byte _lastPedal { get; set; }
     [Networked] private TickTimer _stepTimer { get; set; }
+    // Tick of the last accepted pedal, for measuring real time between pedals on slip patches.
+    [Networked] private int _lastPedalTick { get; set; }
     // Recovery lockout timer after a stumble.
     [Networked] private TickTimer _recoverTimer { get; set; }
     // --- Race participation (Option 3: per-player race state) ---
@@ -84,6 +100,7 @@ public class Player : NetworkBehaviour
     private void Awake()
     {
         _cc = GetComponent<NetworkCharacterController>();
+        _customisation = GetComponent<PlayerCustomisation>();
     }
 
     public override void Spawned()
@@ -124,6 +141,15 @@ public class Player : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        // Bots with PlayerRef.None don't get GetInput called, so we handle them differently
+        if (TryGetComponent<AIRacer>(out var ai) && ai.IsBotControlled && ai.IsActive)
+        {
+            // Get bot input directly
+            var botData = ai.GetBotInput();
+            HandleBotInput(botData);
+            return;
+        }
+
         if (!GetInput(out NetworkInputData data))
             return;
 
@@ -140,6 +166,25 @@ public class Player : NetworkBehaviour
             case MovementMode.Locked:
                 // Locked means stationary: drop any leftover speed so it can't carry
                 // into the next phase (e.g. sprinting into the race start).
+                if (HasStateAuthority)
+                {
+                    Speed = 0f;
+                    _cc.Velocity = Vector3.zero;
+                }
+                break;
+        }
+    }
+
+    private void HandleBotInput(NetworkInputData inputData)
+    {
+        // Bots only use two-key race mode
+        switch (ResolveMode())
+        {
+            case MovementMode.TwoKeyRace:
+                HandleTwoKeyRace(inputData);
+                break;
+
+            case MovementMode.Locked:
                 if (HasStateAuthority)
                 {
                     Speed = 0f;
@@ -196,11 +241,25 @@ public class Player : NetworkBehaviour
             float speed = sprinting ? _sprintSpeed : MoveSpeed;
             _cc.Velocity = speed * transform.forward;
             Speed = speed;                       // drive the animation blend
+
+            // Play running sound in lobby (only for local player)
+            if (Object.HasInputAuthority && AudioManager.Instance != null)
+            {
+                AudioManager.Instance.StartRunningSound();
+                float normalizedSpeed = sprinting ? 0.8f : 0.5f; // Moderate pitch for lobby
+                AudioManager.Instance.SetRunningVolume(normalizedSpeed);
+            }
         }
         else
         {
             _cc.Velocity = Vector3.zero;
             Speed = 0f;                          // idle
+
+            // Stop running sound when idle (only for local player)
+            if (Object.HasInputAuthority && AudioManager.Instance != null)
+            {
+                AudioManager.Instance.StopRunningSound();
+            }
         }
 
         _cc.Move(_cc.Velocity * Runner.DeltaTime);
@@ -211,8 +270,45 @@ public class Player : NetworkBehaviour
     {
         float dt = Runner.DeltaTime;
 
+        // This tick's effective values: the tuned base, adjusted by equipped cosmetics.
+        // The loadout is networked, so the host and the predicting client get the same numbers.
+        ItemStats mods = _customisation != null ? _customisation.GetStatModifiers() : default;
+
+        // Weather + shoes (unit tested in RaceModifiersTests). Rain cuts top speed unless the
+        // shoes are made for rain; slippery patches make rushed pedalling stumble, worse in
+        // rain, offset by the Grip stat.
+        WeatherType weather = _raceManager != null ? _raceManager.Weather : WeatherType.Clear;
+        WeatherType shoeWeather = _customisation != null ? _customisation.GetShoeWeather() : WeatherType.Clear;
+        bool onSlipPatch = SlipPatch.IsOnAnyPatch(transform.position);
+        if (HasStateAuthority && onSlipPatch != _wasOnSlipPatch)
+        {
+            _wasOnSlipPatch = onSlipPatch;
+            Debug.Log(onSlipPatch ? $"[Player] Entered slip patch ({weather})" : "[Player] Left slip patch");
+        }
+        float tooFastStepInterval = RaceModifiers.TooFastStepInterval(_tooFastStepInterval, onSlipPatch, weather, mods.Grip);
+
+        float topSpeed = _topSpeed * StatScale(mods.TopSpeed)
+                       * RaceModifiers.WeatherTopSpeedMultiplier(weather, shoeWeather);
+        float accelPerAlternation = _accelPerAlternation * StatScale(mods.Acceleration);
+        // Recovery shortens the whole stumble: a faster-stopping slide, then a shorter lockout.
+        float slideDecelRate = _slideDecelRate * RecoveryScale(mods.Recovery);
+        float recoveryLockout = Mathf.Max(_minRecoveryLockout, _recoveryLockout * RecoveryScale(-mods.Recovery));
+
         bool pedalA = data.Buttons.IsSet(NetworkInputData.RunPedalA);
         bool pedalB = data.Buttons.IsSet(NetworkInputData.RunPedalB);
+
+        // Start running sound when player starts moving (only for local player)
+        if (Object.HasInputAuthority && AudioManager.Instance != null)
+        {
+            if (Speed > 0.5f && RunState == StumbleState.Running)
+            {
+                AudioManager.Instance.StartRunningSound();
+            }
+            else if (Speed <= 0.5f)
+            {
+                AudioManager.Instance.StopRunningSound();
+            }
+        }
 
         switch (RunState)
         {
@@ -245,15 +341,25 @@ public class Player : NetworkBehaviour
                         float stepInterval = _stepTimer.RemainingTime(Runner) ?? _tooSlowStepInterval;
                         stepInterval = _tooSlowStepInterval - stepInterval;
 
-                        if (stepInterval < _tooFastStepInterval)
+                        // stepInterval above never drops below _idealStepInterval, so it can't spot
+                        // rushed pedalling. On slip patches, use the real time since the last pedal
+                        // instead (dry ground is left as it was). First pedal after a stumble is always safe.
+                        float secondsSinceLastPedal = _lastPedal == 0
+                            ? float.MaxValue
+                            : ((int)Runner.Tick - _lastPedalTick) * Runner.DeltaTime;
+                        bool slippedOnPatch = onSlipPatch && secondsSinceLastPedal < tooFastStepInterval;
+
+                        if (slippedOnPatch || stepInterval < _tooFastStepInterval)
                         {
-                            // Pedal came down too quickly = stumble.
+                            // Pedal came down too quickly (or rushed on a slip patch) = stumble.
+                            if (slippedOnPatch)
+                                Debug.Log($"[Player] Slipped: {secondsSinceLastPedal:F2}s between pedals, needed {tooFastStepInterval:F2}s");
                             BeginStumble();
                         }
                         else
                         {
                             // Valid alternation: accelerate, with diminishing returns near top speed.
-                            float headroom = 1f - (Speed / _topSpeed);
+                            float headroom = 1f - (Speed / topSpeed);
 
                             float timingDifference = Mathf.Abs(stepInterval - _idealStepInterval);
 
@@ -262,11 +368,12 @@ public class Player : NetworkBehaviour
                             );
 
                             Speed = Mathf.Min(
-                                _topSpeed,
-                                Speed + (_accelPerAlternation * timingMultiplier * headroom)
+                                topSpeed,
+                                Speed + (accelPerAlternation * timingMultiplier * headroom)
                             );
 
                             _lastPedal = pressed;
+                            _lastPedalTick = (int)Runner.Tick;
                             _stepTimer = TickTimer.CreateFromSeconds(Runner, _idealStepInterval);
                         }
                     }
@@ -281,7 +388,7 @@ public class Player : NetworkBehaviour
 
             case StumbleState.Sliding:
                 // Proportional glide: bleeds fast at high speed, eases to a soft stop.
-                Speed = Mathf.Max(0f, Speed - Speed * _slideDecelRate * dt);
+                Speed = Mathf.Max(0f, Speed - Speed * slideDecelRate * dt);
 
                 if (Speed > 0.5f)
                 {
@@ -294,7 +401,7 @@ public class Player : NetworkBehaviour
                     Speed = 0f;
                     _cc.Velocity = Vector3.zero;
                     RunState = StumbleState.Recovering;
-                    _recoverTimer = TickTimer.CreateFromSeconds(Runner, _recoveryLockout);
+                    _recoverTimer = TickTimer.CreateFromSeconds(Runner, recoveryLockout);
                 }
                 break;
 
@@ -308,6 +415,13 @@ public class Player : NetworkBehaviour
                 break;
         }
     }
+
+    // Multiplier for a cosmetic stat: +1 point = +_percentPerStatPoint (e.g. 4%).
+    // Never drops below 10%, however negative the stats get.
+    private float StatScale(int points) => Mathf.Max(0.1f, 1f + points * _percentPerStatPoint);
+
+    // Same idea for Recovery, with its own (stronger) per-point strength.
+    private float RecoveryScale(int points) => Mathf.Max(0.1f, 1f + points * _recoveryPercentPerPoint);
 
     // Enter the stumble: freeze acceleration and start the decelerating glide from
     // whatever speed we had (that speed determines slide distance).
@@ -429,6 +543,16 @@ public class Player : NetworkBehaviour
         if (_animator != null)
             _animator.SetFloat("Speed", Speed);
 
+        // Update running sound volume based on speed (only for local player)
+        if (Object.HasInputAuthority && AudioManager.Instance != null)
+        {
+            if (Speed > 0.5f && RunState == StumbleState.Running)
+            {
+                float normalizedSpeed = Speed / _topSpeed;
+                AudioManager.Instance.SetRunningVolume(normalizedSpeed);
+            }
+        }
+
         foreach (var change in _changeDetector.DetectChanges(this))
         {
             switch (change)
@@ -439,6 +563,14 @@ public class Player : NetworkBehaviour
 
                 case nameof(Celebration):
                     OnCelebrationChanged(Celebration);
+                    break;
+
+                case nameof(HasFinished):
+                    // Finish line sound for the local player only (bots and other players are silent).
+                    if (HasFinished && Object.HasInputAuthority && AudioManager.Instance != null)
+                    {
+                        AudioManager.Instance.PlayFinishSound();
+                    }
                     break;
             }
         }
@@ -454,6 +586,13 @@ public class Player : NetworkBehaviour
         {
             case StumbleState.Sliding:
                 _animator.SetTrigger("Fall");
+                
+                // Play fall sound (only for local player)
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayFallSound();
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
 
             case StumbleState.Recovering:
@@ -462,6 +601,11 @@ public class Player : NetworkBehaviour
 
             case StumbleState.Running:
                 // Returns to Locomotion automatically when GetUp finishes (exit-time transition).
+                // Resume running sound (only for local player)
+                if (Object.HasInputAuthority && AudioManager.Instance != null && Speed > 0.5f)
+                {
+                    AudioManager.Instance.StartRunningSound();
+                }
                 break;
         }
     }
@@ -475,19 +619,48 @@ public class Player : NetworkBehaviour
         {
             case CelebrationState.First:
                 _animator.SetTrigger("Victory1");
+                
+                // Play victory sound for local player
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayVictorySound();
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
             case CelebrationState.Second:
                 _animator.SetTrigger("Victory2");
+                
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayVictorySound();
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
             case CelebrationState.Third:
                 _animator.SetTrigger("Victory3");
+                
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayVictorySound();
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
             case CelebrationState.Clapping:
-                _animator.SetTrigger("Clap");
+                _animator.SetTrigger("Clapping");
+                
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
             case CelebrationState.None:
                 // back to normal locomotion (e.g. when returning to lobby)
                 _animator.Play("Locomotion", 0);
+                
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
         }
     }

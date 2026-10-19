@@ -1,0 +1,84 @@
+I had AI just explain how to set it up and make sure its working just incase you run into issues because I couldn't be bothered lol.
+
+
+
+Audio & Bots Setup Guide
+Audio Setup
+Create AudioManager Object
+Right-click in Hierarchy → Create Empty
+Name it AudioManager
+Add Component → Search "AudioManager" → Add it
+The script auto-creates 3 AudioSource children (leave them alone)
+Assign Audio Clips
+Select AudioManager, then in Inspector drag these files:
+
+Fall Sound Clip → fall over.mp3
+Running Sound Clip → running.mp3
+Crowd Sound Clip → crowd cheer.mp3
+Victory Sound Clip → victory.mp3
+Button Click Clip → click.mp3
+Ambience Sound Clip → ambience.mp3
+Done. Audio works now.
+
+Bot Setup
+Create BotSpawner Object
+Right-click in Hierarchy → Create Empty
+Name it BotSpawner
+Add Component → Search "BotSpawner" → Add it
+Configure BotSpawner
+In Inspector:
+
+Bot Player Prefab → Drag your Player prefab (the one with NetworkObject)
+Max Racers → Set to 8
+Fill With Bots → Check the box ✓
+Bot Difficulty Distribution → Leave default (or tweak the numbers)
+Link BotSpawner to RaceManager
+Select RaceManager in Hierarchy
+Find the RaceManager component in Inspector
+Look for Bot Spawner field
+Drag the BotSpawner object into that field
+Done. Bots work now.
+
+Testing
+Audio:
+
+Lobby = ambience plays
+Button click = click sound
+Race starts = running sound loops (pitch changes with speed)
+Fall over = fall sound plays
+Racing = crowd cheering in background
+Podium = victory music plays
+Bots:
+
+1 player = 7 bots spawn
+2 players = 6 bots spawn
+Check console: "Real players: X, Spawning Y bots"
+All 8 racers appear at start line with different body colors
+Bots run properly and occasionally stumble
+All 8 show up on podium in correct order
+If Shit Breaks
+No sound:
+
+AudioManager object exists?
+All 6 clips assigned?
+AudioSource children exist under AudioManager?
+No bots:
+
+BotSpawner object exists?
+Player prefab assigned to Bot Player Prefab field?
+Fill With Bots is checked?
+BotSpawner linked to RaceManager?
+Bots don't finish/podium:
+
+Check console for "EnterPodium - 8 participants" (should say 8)
+Make sure RaceLogic.cs was updated
+Bots all gray:
+
+Player prefab has PlayerCustomisation component?
+Check console for "Bot assigned color index" messages
+What's Actually Happening
+Audio: AudioManager singleton plays sounds when triggered (fall, victory, etc.) and manages looping sounds (running, crowd, ambience) based on race phase.
+
+Bots: BotSpawner counts real players in lobby, spawns enough bots to fill to 8 total. Bots use AIRacer component to simulate pedal inputs. RaceLogic detects both real players and bots for finish line + podium. PlayerCustomisation gives them random body colors.
+
+That's it.

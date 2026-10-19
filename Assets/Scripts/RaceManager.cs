@@ -58,10 +58,25 @@ public class RaceManager : NetworkBehaviour
     [SerializeField] private RaceStartNoticeBanner _startNoticeBanner; // image notice that race is about to start
     [SerializeField] private float _startNoticeDuration = 2.5f; // duration start notice is shown
 
+    [Header("Weather")]
+    [Tooltip("Pick Clear or Rain at random for each race. Untick to always use Fixed Weather.")]
+    [SerializeField] private bool _randomWeather = true;
+    [SerializeField] private WeatherType _fixedWeather = WeatherType.Clear;
+    [Tooltip("Optional: rain particles / wet-look objects, switched on for every client while it's raining.")]
+    [SerializeField] private GameObject _rainEffects;
+
+    [Header("Bots")]
+    [Tooltip("Fills empty race slots with AI bots. Found automatically in the scene if left empty.")]
+    [SerializeField] private BotSpawner _botSpawner;
+
     [Networked] public RacePhase Phase { get; private set; }
     [Networked] private TickTimer _phaseTimer { get; set; }
     [Networked] public int RaceStartTick { get; private set; }
     [Networked] private TickTimer _startNoticeTimer { get; set; }
+    // Host picks this when a race starts; Player reads it every tick (top speed + slip patches).
+    [Networked] public WeatherType Weather { get; private set; }
+    // Host picks this when a race starts, so every client plays the same race music track.
+    [Networked] public int RaceMusicIndex { get; private set; }
 
     // --- Read-only accessors for local presentation (RaceHud etc.) ---
     // Seconds left in the current phase timer (Countdown/Results/Podium); 0 once expired
@@ -75,6 +90,8 @@ public class RaceManager : NetworkBehaviour
     public override void Spawned()
     {
         _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
+        if (_botSpawner == null)
+            _botSpawner = FindFirstObjectByType<BotSpawner>();
         if (HasStateAuthority)
             Phase = RacePhase.Lobby;
     }
@@ -93,6 +110,10 @@ public class RaceManager : NetworkBehaviour
         var banner = FindFirstObjectByType<RaceStartNoticeBanner>();
         if (banner != null)
             banner.Show(duration);
+
+        // Sound for the "race about to start" banner, on every client.
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayRaceStartingSound();
     }
 
     public override void FixedUpdateNetwork()
@@ -144,14 +165,44 @@ public class RaceManager : NetworkBehaviour
         Phase = RacePhase.Positioning;
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _positioningDuration);
 
-        // Enrol every player in the session as a participant and line them up at the
-        // start, in join order, so everyone begins the same distance from the finish
-        // line and facing the correct direction.
-        int index = 0;
+        // Weather is decided before the countdown so players see it while lining up.
+        Weather = _randomWeather ? (WeatherType)UnityEngine.Random.Range(0, 2) : _fixedWeather;   // 0 = Clear, 1 = Rain
+        Debug.Log($"[RaceManager] Weather for this race: {Weather}");
+
+        PickRaceMusic();
+
+        // Fill the empty slots with AI bots. Spawning happens straight away on the host,
+        // so the bots are ready to be lined up below with everyone else.
+        if (_botSpawner != null)
+        {
+            _botSpawner.DespawnAllBots();   // clear any leftovers from a previous race
+            _botSpawner.SpawnBotsForRace();
+        }
+
+        // Build the start roster: real players first (in join order), then bots.
+        var racers = new System.Collections.Generic.List<Player>();
         foreach (var pref in Runner.ActivePlayers)
         {
             if (Runner.TryGetPlayerObject(pref, out var obj) &&
-                obj.TryGetComponent<Player>(out var p))
+                obj.TryGetComponent<Player>(out var realPlayer))
+            {
+                racers.Add(realPlayer);
+            }
+        }
+        if (_botSpawner != null)
+        {
+            foreach (var bot in _botSpawner.SpawnedBots)
+            {
+                if (bot != null && bot.Object != null && bot.Object.IsValid)
+                    racers.Add(bot);
+            }
+        }
+
+        // Enrol every racer as a participant and line them up at the start, so everyone
+        // begins the same distance from the finish line and facing the correct direction.
+        int index = 0;
+        foreach (var p in racers)
+        {
             {
                 p.StartRacing();
 
@@ -189,6 +240,10 @@ public class RaceManager : NetworkBehaviour
     {
         Phase = RacePhase.Racing;
         RaceStartTick = Runner.Tick;
+
+        // Bots stand still through Positioning/Countdown and start pedalling on "Go".
+        if (_botSpawner != null)
+            _botSpawner.ActivateBots();
     }
 
     private void EnterResults()
@@ -248,6 +303,14 @@ public class RaceManager : NetworkBehaviour
     {
         Phase = RacePhase.Lobby;
         _startNoticeTimer = TickTimer.None;
+        Weather = WeatherType.Clear;   // the lobby is always dry
+
+        // Bots only exist for the race; remove them before everyone returns to the lobby.
+        if (_botSpawner != null)
+        {
+            _botSpawner.DeactivateBots();
+            _botSpawner.DespawnAllBots();
+        }
 
         int index = 0;
         // Clear race state on all players for the next race.
@@ -314,12 +377,117 @@ public class RaceManager : NetworkBehaviour
                     break;
             }
         }
+
+        // Checked every frame rather than via the ChangeDetector so late joiners also see rain.
+        bool raining = Weather == WeatherType.Rain;
+        if (_rainEffects != null && _rainEffects.activeSelf != raining)
+            _rainEffects.SetActive(raining);
+
+        // Background music follows the phase. Checked every frame (like the rain) so it also
+        // starts for the host on spawn and for late joiners; SetMusic only acts on a change.
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.MusicTrack track = MusicForPhase(Phase);
+
+            // Race music fades out as soon as YOU finish, even while others are still racing.
+            if (track == AudioManager.MusicTrack.Race && LocalPlayerHasFinished())
+                track = AudioManager.MusicTrack.None;
+
+            AudioManager.Instance.SetMusic(track, RaceMusicIndex);
+        }
+    }
+
+    // True once this machine's own player has crossed the finish line.
+    private bool LocalPlayerHasFinished()
+    {
+        if (Runner == null)
+            return false;
+
+        return Runner.TryGetPlayerObject(Runner.LocalPlayer, out var obj)
+            && obj.TryGetComponent<Player>(out var local)
+            && local.HasFinished;
+    }
+
+    // Host-only: choose this race's music track at random, avoiding the one that played last race.
+    private void PickRaceMusic()
+    {
+        int count = AudioManager.Instance != null ? AudioManager.Instance.RaceMusicTrackCount : 0;
+        if (count <= 1)
+        {
+            RaceMusicIndex = 0;
+            return;
+        }
+
+        int next = UnityEngine.Random.Range(0, count - 1);
+        if (next >= RaceMusicIndex)
+            next++;   // skip last race's track
+        RaceMusicIndex = next;
+        Debug.Log($"[RaceManager] Race music track: {RaceMusicIndex}");
+    }
+
+    // Which music track plays in each phase.
+    // Race music: from being moved to the start line, through the countdown, until you finish.
+    // Results and podium are silent; lobby music fades back in on returning to the lobby.
+    private static AudioManager.MusicTrack MusicForPhase(RacePhase phase)
+    {
+        switch (phase)
+        {
+            case RacePhase.Lobby:
+                return AudioManager.MusicTrack.Lobby;
+
+            case RacePhase.Positioning:
+            case RacePhase.Countdown:
+            case RacePhase.Racing:
+                return AudioManager.MusicTrack.Race;
+
+            case RacePhase.Results:
+            case RacePhase.Podium:
+            default:
+                return AudioManager.MusicTrack.None;
+        }
     }
 
     private void OnPhaseChanged(RacePhase newPhase)
     {
         Debug.Log($"[RaceManager] Phase -> {newPhase}");
         // TODO: local UI per phase (countdown overlay, racing HUD, results, podium).
+
+        // Race audio. Runs locally on every client, since Phase is networked.
+        // (Per-player sounds -- running, falling, finishing, victory -- live in Player.)
+        AudioManager audio = AudioManager.Instance;
+        if (audio == null)
+            return;
+
+        switch (newPhase)
+        {
+            case RacePhase.Positioning:
+                // Players were just teleported to the start line; don't carry lobby footsteps over.
+                audio.StopRunningSound();
+                break;
+
+            case RacePhase.Countdown:
+                // Ready / Set / GO! sounds are played by RaceHud, in sync with the banner.
+                break;
+
+            case RacePhase.Racing:
+                // Crowd cheers from "GO!" until everyone is back in the lobby.
+                audio.StartCrowdSound();
+                break;
+
+            case RacePhase.Results:
+                // Results screen appears (RaceHud shows it from Results onwards).
+                audio.PlayResultsSound();
+                break;
+
+            case RacePhase.Podium:
+                // Crowd keeps going; the podium victory sound is played by Player.
+                break;
+
+            case RacePhase.Lobby:
+                audio.StopCrowdSound();
+                audio.StopRunningSound();
+                break;
+        }
     }
 
     private void Update()

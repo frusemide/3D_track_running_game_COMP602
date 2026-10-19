@@ -144,7 +144,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 2ca16aa958337e442a5d0bc0b2f0d039, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 9dd0e7d378988ef4c9fcab5ce8f5c109, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -167,8 +167,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ResultsRowView
   _background: {fileID: 2577458125545053994}
-  _normalBackground: {fileID: 21300000, guid: 2ca16aa958337e442a5d0bc0b2f0d039, type: 3}
-  _localPlayerBackground: {fileID: 21300000, guid: 23ccf444f5b4dcb469f6438ad019c9c2, type: 3}
+  _normalBackground: {fileID: 21300000, guid: 9dd0e7d378988ef4c9fcab5ce8f5c109, type: 3}
+  _localPlayerBackground: {fileID: 21300000, guid: 6c9891a498bd56f4283bdc9379eead03, type: 3}
   _placementBadge: {fileID: 6934171113048055135}
   _nameText: {fileID: 6930999946293364511}
   _timeText: {fileID: 9115914347286192775}
