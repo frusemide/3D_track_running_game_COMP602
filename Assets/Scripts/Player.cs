@@ -362,6 +362,20 @@ public class Player : NetworkBehaviour
         DisplayName = string.IsNullOrEmpty(clean) ? FallbackName() : clean;
     }
 
+    // Host side. Tells the owning client it has been banned before it is disconnected.
+    public void NotifyBanned()
+    {
+        if (!HasStateAuthority) return;
+        RPC_NotifyBanned();
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+    private void RPC_NotifyBanned()
+    {
+        if (BanManager.Instance != null)
+            BanManager.Instance.OnBannedByHost();
+    }
+
     // Default name when none was entered.
     private string FallbackName() => $"Player {Object.InputAuthority.PlayerId}";
 

@@ -44,12 +44,15 @@ public class GameLauncher : MonoBehaviour
             GameMode = mode,
             SessionName = _sessionName,
             Scene = scene,
-            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
+            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>(),
+            ConnectionToken = BanList.LocalConnectionToken
         });
 
         if (!result.Ok)
         {
             Debug.LogError($"StartGame failed: {result.ShutdownReason}");
+            if (result.ShutdownReason == ShutdownReason.ConnectionRefused && BanManager.Instance != null)
+                BanManager.Instance.ShowJoinRefused();
             Destroy(_runner);
             _runner = null;
             if (LoadingScreen.Instance != null)
