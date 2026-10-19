@@ -376,8 +376,35 @@ public class Player : NetworkBehaviour
             BanManager.Instance.OnBannedByHost();
     }
 
-    // Default name when none was entered.
-    private string FallbackName() => $"Player {Object.InputAuthority.PlayerId}";
+    // Host side. Sets the name directly, e.g. for bots.
+    public void SetDisplayName(string displayName)
+    {
+        ApplyDisplayName(displayName);
+    }
+
+    // Default name when none was entered. Characters without an owning player are bots,
+    // numbered Bot 1, Bot 2 and so on.
+    private string FallbackName() =>
+        Object.InputAuthority == PlayerRef.None ? $"Bot {NextFreeBotNumber()}" : $"Player {Object.InputAuthority.PlayerId}";
+
+    private int NextFreeBotNumber()
+    {
+        var used = new System.Collections.Generic.HashSet<int>();
+        foreach (var other in FindObjectsByType<Player>(FindObjectsSortMode.None))
+        {
+            if (other == this || other.Object == null || !other.Object.IsValid)
+                continue;
+
+            string otherName = other.DisplayName.ToString();
+            if (otherName.StartsWith("Bot ") && int.TryParse(otherName.Substring(4), out int number))
+                used.Add(number);
+        }
+
+        int next = 1;
+        while (used.Contains(next))
+            next++;
+        return next;
+    }
 
     public void SetForward(Vector3 forward)
     {

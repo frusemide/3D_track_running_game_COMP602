@@ -3659,6 +3659,7 @@ GameObject:
   - component: {fileID: 1821583602}
   - component: {fileID: 1821583601}
   - component: {fileID: 1821583604}
+  - component: {fileID: 1821583605}
   m_Layer: 5
   m_Name: RecordsButton
   m_TagString: Untagged
@@ -3789,6 +3790,18 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1821583605
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1821583599}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d97c1d147beb44428a4b38ddf274a41, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RecordsPanelUI
 --- !u!1 &1872917179
 GameObject:
   m_ObjectHideFlags: 0
