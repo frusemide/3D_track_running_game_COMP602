@@ -11,9 +11,12 @@ using Fusion;
 public static class RaceLogic
 {
     // Collect every player currently in the race (IsRacing == true).
+    // Includes both real players (via ActivePlayers) and AI bots (via FindObjectsByType).
     public static List<Player> GetParticipants(NetworkRunner runner)
     {
         var participants = new List<Player>();
+        
+        // Get real players from ActivePlayers (those with valid PlayerRef)
         foreach (var player in runner.ActivePlayers)
         {
             if (runner.TryGetPlayerObject(player, out var obj) &&
@@ -23,6 +26,21 @@ public static class RaceLogic
                 participants.Add(p);
             }
         }
+        
+        // Also get AI bots (spawned with PlayerRef.None, so not in ActivePlayers)
+        var allPlayers = UnityEngine.Object.FindObjectsByType<Player>(UnityEngine.FindObjectsSortMode.None);
+        foreach (var p in allPlayers)
+        {
+            // Safety check: only access IsRacing if the object is still spawned
+            if (p.Object != null && p.Object.IsValid && !participants.Contains(p))
+            {
+                if (p.IsRacing)
+                {
+                    participants.Add(p);
+                }
+            }
+        }
+        
         return participants;
     }
 

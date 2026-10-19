@@ -118,6 +118,15 @@ public class Player : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        // Bots with PlayerRef.None don't get GetInput called, so we handle them differently
+        if (TryGetComponent<AIRacer>(out var ai) && ai.IsBotControlled && ai.IsActive)
+        {
+            // Get bot input directly
+            var botData = ai.GetBotInput();
+            HandleBotInput(botData);
+            return;
+        }
+
         if (!GetInput(out NetworkInputData data))
             return;
 
@@ -134,6 +143,25 @@ public class Player : NetworkBehaviour
             case MovementMode.Locked:
                 // Locked means stationary: drop any leftover speed so it can't carry
                 // into the next phase (e.g. sprinting into the race start).
+                if (HasStateAuthority)
+                {
+                    Speed = 0f;
+                    _cc.Velocity = Vector3.zero;
+                }
+                break;
+        }
+    }
+
+    private void HandleBotInput(NetworkInputData inputData)
+    {
+        // Bots only use two-key race mode
+        switch (ResolveMode())
+        {
+            case MovementMode.TwoKeyRace:
+                HandleTwoKeyRace(inputData);
+                break;
+
+            case MovementMode.Locked:
                 if (HasStateAuthority)
                 {
                     Speed = 0f;
@@ -190,11 +218,25 @@ public class Player : NetworkBehaviour
             float speed = sprinting ? _sprintSpeed : MoveSpeed;
             _cc.Velocity = speed * transform.forward;
             Speed = speed;                       // drive the animation blend
+
+            // Play running sound in lobby (only for local player)
+            if (Object.HasInputAuthority && AudioManager.Instance != null)
+            {
+                AudioManager.Instance.StartRunningSound();
+                float normalizedSpeed = sprinting ? 0.8f : 0.5f; // Moderate pitch for lobby
+                AudioManager.Instance.SetRunningVolume(normalizedSpeed);
+            }
         }
         else
         {
             _cc.Velocity = Vector3.zero;
             Speed = 0f;                          // idle
+
+            // Stop running sound when idle (only for local player)
+            if (Object.HasInputAuthority && AudioManager.Instance != null)
+            {
+                AudioManager.Instance.StopRunningSound();
+            }
         }
 
         _cc.Move(_cc.Velocity * Runner.DeltaTime);
@@ -231,6 +273,19 @@ public class Player : NetworkBehaviour
 
         bool pedalA = data.Buttons.IsSet(NetworkInputData.RunPedalA);
         bool pedalB = data.Buttons.IsSet(NetworkInputData.RunPedalB);
+
+        // Start running sound when player starts moving (only for local player)
+        if (Object.HasInputAuthority && AudioManager.Instance != null)
+        {
+            if (Speed > 0.5f && RunState == StumbleState.Running)
+            {
+                AudioManager.Instance.StartRunningSound();
+            }
+            else if (Speed <= 0.5f)
+            {
+                AudioManager.Instance.StopRunningSound();
+            }
+        }
 
         switch (RunState)
         {
@@ -401,6 +456,16 @@ public class Player : NetworkBehaviour
         if (_animator != null)
             _animator.SetFloat("Speed", Speed);
 
+        // Update running sound volume based on speed (only for local player)
+        if (Object.HasInputAuthority && AudioManager.Instance != null)
+        {
+            if (Speed > 0.5f && RunState == StumbleState.Running)
+            {
+                float normalizedSpeed = Speed / _topSpeed;
+                AudioManager.Instance.SetRunningVolume(normalizedSpeed);
+            }
+        }
+
         foreach (var change in _changeDetector.DetectChanges(this))
         {
             switch (change)
@@ -426,6 +491,13 @@ public class Player : NetworkBehaviour
         {
             case StumbleState.Sliding:
                 _animator.SetTrigger("Fall");
+                
+                // Play fall sound (only for local player)
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayFallSound();
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
 
             case StumbleState.Recovering:
@@ -434,6 +506,11 @@ public class Player : NetworkBehaviour
 
             case StumbleState.Running:
                 // Returns to Locomotion automatically when GetUp finishes (exit-time transition).
+                // Resume running sound (only for local player)
+                if (Object.HasInputAuthority && AudioManager.Instance != null && Speed > 0.5f)
+                {
+                    AudioManager.Instance.StartRunningSound();
+                }
                 break;
         }
     }
@@ -447,19 +524,48 @@ public class Player : NetworkBehaviour
         {
             case CelebrationState.First:
                 _animator.SetTrigger("Victory1");
+                
+                // Play victory sound for local player
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayVictorySound();
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
             case CelebrationState.Second:
                 _animator.SetTrigger("Victory2");
+                
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayVictorySound();
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
             case CelebrationState.Third:
                 _animator.SetTrigger("Victory3");
+                
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayVictorySound();
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
             case CelebrationState.Clapping:
                 _animator.SetTrigger("Clap");
+                
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
             case CelebrationState.None:
                 // back to normal locomotion (e.g. when returning to lobby)
                 _animator.Play("Locomotion", 0);
+                
+                if (Object.HasInputAuthority && AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.StopRunningSound();
+                }
                 break;
         }
     }
