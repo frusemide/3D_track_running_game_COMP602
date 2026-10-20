@@ -4,8 +4,7 @@ A multiplayer 3D track running game built in Unity for **COMP602 (2026, Semester
 
 Players gather in a shared lobby, customise their runner, warm up on a practice sprint, then race up to eight runners (other players or AI bots) by alternating two pedal keys in rhythm. Pedal too fast or hit the same key twice and your runner stumbles. Each race brings its own weather and puddles to deal with.
 
-> **All rights reserved.** This repository is shared for assessment and portfolio viewing only. Please read the [License](#license) section before using anything here.
-
+> **All rights reserved.** This repository is shared for assessment and portfolio viewing only
 ---
 
 ## Contributors
