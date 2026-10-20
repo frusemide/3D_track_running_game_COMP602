@@ -11,9 +11,12 @@ using Fusion;
 public static class RaceLogic
 {
     // Collect every player currently in the race (IsRacing == true).
+    // Includes both real players (via ActivePlayers) and AI bots (via FindObjectsByType).
     public static List<Player> GetParticipants(NetworkRunner runner)
     {
         var participants = new List<Player>();
+        
+        // Get real players from ActivePlayers (those with valid PlayerRef)
         foreach (var player in runner.ActivePlayers)
         {
             if (runner.TryGetPlayerObject(player, out var obj) &&
@@ -23,6 +26,21 @@ public static class RaceLogic
                 participants.Add(p);
             }
         }
+        
+        // Also get AI bots (spawned with PlayerRef.None, so not in ActivePlayers)
+        var allPlayers = UnityEngine.Object.FindObjectsByType<Player>(UnityEngine.FindObjectsSortMode.None);
+        foreach (var p in allPlayers)
+        {
+            // Safety check: only access IsRacing if the object is still spawned
+            if (p.Object != null && p.Object.IsValid && !participants.Contains(p))
+            {
+                if (p.IsRacing)
+                {
+                    participants.Add(p);
+                }
+            }
+        }
+        
         return participants;
     }
 
@@ -54,9 +72,13 @@ public static class RaceLogic
             // Finishers rank ahead of non-finishers.
             if (a.HasFinished && !b.HasFinished) return -1;
             if (!a.HasFinished && b.HasFinished) return 1;
-            // Both finished: earlier tick wins.
+            // Both finished: the host-assigned finishing order wins, which also settles ties.
             if (a.HasFinished && b.HasFinished)
+            {
+                if (a.FinishOrder > 0 && b.FinishOrder > 0)
+                    return a.FinishOrder.CompareTo(b.FinishOrder);
                 return a.FinishTick.CompareTo(b.FinishTick);
+            }
             // Neither finished yet: rank by current race progress (further along wins).
             // Keeps this consistent with the progress-bar leader/crown logic in RaceHud,
             // and makes RankParticipants meaningful mid-race, not just once people finish.

@@ -86,6 +86,10 @@ public class RaceHud : MonoBehaviour
 
     private RaceManager _raceManager;
     private Player _localPlayer;
+
+    // Which countdown banner was last shown, so each Ready / Set / GO! sound plays once.
+    private enum CountdownStep { None, Ready, Set, Go }
+    private CountdownStep _lastCountdownStep = CountdownStep.None;
     private readonly List<ResultsRowView> _spawnedRows = new List<ResultsRowView>();
     private bool _resultsBuilt;
 
@@ -109,6 +113,7 @@ public class RaceHud : MonoBehaviour
 
         UpdateRaceOnlyVisibility();
         UpdateCountdownBanner();
+        UpdateCountdownAudio();
         UpdateTimer();
         UpdateProgressBar();
         UpdateFinishBanner();
@@ -171,6 +176,51 @@ public class RaceHud : MonoBehaviour
             default:
                 _countdownBannerRoot.SetActive(false);
                 break;
+        }
+    }
+
+    // --- Countdown audio ---
+    // Uses the same rules as the banner above, so each sound plays the moment its banner
+    // appears: Ready, then Set once PhaseTimeRemaining drops to Ready Threshold Seconds,
+    // then GO! when Racing begins.
+    private void UpdateCountdownAudio()
+    {
+        CountdownStep step;
+        switch (_raceManager.Phase)
+        {
+            case RaceManager.RacePhase.Countdown:
+                step = _raceManager.PhaseTimeRemaining > _readyThresholdSeconds
+                    ? CountdownStep.Ready
+                    : CountdownStep.Set;
+                break;
+
+            case RaceManager.RacePhase.Racing:
+                // Only play GO! right at the start (not for someone who joins mid-race).
+                bool justStarted = TickSeconds(_raceManager.Runner.Tick) <= _goDisplaySeconds;
+                step = (justStarted || _lastCountdownStep == CountdownStep.Go)
+                    ? CountdownStep.Go
+                    : CountdownStep.None;
+                break;
+
+            default:
+                step = CountdownStep.None;
+                break;
+        }
+
+        if (step == _lastCountdownStep)
+            return;
+
+        _lastCountdownStep = step;
+
+        AudioManager audio = AudioManager.Instance;
+        if (audio == null)
+            return;
+
+        switch (step)
+        {
+            case CountdownStep.Ready: audio.PlayReadySound(); break;
+            case CountdownStep.Set: audio.PlaySetSound(); break;
+            case CountdownStep.Go: audio.PlayGoSound(); break;
         }
     }
 
@@ -331,11 +381,7 @@ public class RaceHud : MonoBehaviour
             if (row != null) Destroy(row.gameObject);
         _spawnedRows.Clear();
 
-        // Stable per-seat numbering (join order), independent of finish order -- so
-        // "Player 2" doesn't change identity race to race just because standings shift.
-        // No real username system exists yet; this matches the mockup's placeholder
-        // "Player N" labelling until one does.
-        var joinOrder = RaceLogic.GetParticipants(_raceManager.Runner);
+        // The local player's row is marked with "(You)".
         var ranked = RaceLogic.RankParticipants(_raceManager.Runner);
 
         for (int i = 0; i < ranked.Count; i++)
@@ -343,7 +389,8 @@ public class RaceHud : MonoBehaviour
             Player p = ranked[i];
             bool isSelf = p == _localPlayer;
 
-            string name = isSelf ? "You" : $"Player {joinOrder.IndexOf(p) + 1}";
+            string displayName = p.DisplayName.ToString();
+            string name = isSelf ? $"{displayName} (You)" : displayName;
             string time = p.HasFinished ? FormatTime(TickSeconds(p.FinishTick)) : "--:--.---";
 
             var placementSprites = isSelf ? _resultsPlacementSpritesSelf : _resultsPlacementSpritesOpponent;

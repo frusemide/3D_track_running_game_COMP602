@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b87bf057cae96b541aa98eca39a830d6, type: 3}
+  m_Name: Skin3
+  m_EditorClassIdentifier: Assembly-CSharp::CosmeticItem
+  DisplayName: Skin3
+  Icon: {fileID: 21300000, guid: 1fee9cd3adf39984b8c556a187712f63, type: 3}
+  SelectedIcon: {fileID: 21300000, guid: 9dafca9345ba337498fcfc060b0f2f0c, type: 3}
+  Slot: 0
+  UnlockedByDefault: 1
+  Prefab: {fileID: 0}
+  Fit:
+    LocalPosition: {x: 0, y: 0, z: 0}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    Scale: 1
+  SecondaryPrefab: {fileID: 0}
+  SecondaryFit:
+    LocalPosition: {x: 0, y: 0, z: 0}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    Scale: 1
+  BodyColour: {r: 0.65882355, g: 0.4156863, b: 0.3254902, a: 1}
+  Stats:
+    TopSpeed: 0
+    Acceleration: 0
+    WetSurfaces: 0
+    Boost: 0
+    Weight: 0

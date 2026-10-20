@@ -98,7 +98,11 @@ public class RaceConsolePanel : MonoBehaviour
         foreach (var p in _runner.ActivePlayers)
         {
             count++;
-            sb.AppendLine($"Player {count}{(p == _runner.LocalPlayer ? "  (you)" : "")}");
+            string name = $"Player {count}";
+            Player player = Player.FindByPlayerRef(p);
+            if (player != null)
+                name = player.DisplayName.ToString();
+            sb.AppendLine($"{name}{(p == _runner.LocalPlayer ? "  (you)" : "")}");
         }
 
         _playerListText.text = sb.Length > 0 ? sb.ToString() : "No players joined yet.";
@@ -106,6 +110,12 @@ public class RaceConsolePanel : MonoBehaviour
 
     private void OnStartClicked()
     {
+        // Play button click sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayButtonClickSound();
+        }
+
         if (_raceManager != null)
             _raceManager.RequestStartRace();
 

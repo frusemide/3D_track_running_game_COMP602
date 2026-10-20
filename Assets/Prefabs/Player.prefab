@@ -2276,11 +2276,12 @@ GameObject:
   - component: {fileID: 7144064672097769262}
   - component: {fileID: 6806018713538926918}
   - component: {fileID: 1063073525040925228}
+  - component: {fileID: 4891529645473793459}
   - component: {fileID: 6211424177164170952}
   - component: {fileID: 6441540204799985199}
   - component: {fileID: 5316472212503792202}
-  - component: {fileID: 5369340214260326597}
   - component: {fileID: 2697522606296147698}
+  - component: {fileID: 4022341829299109561}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -2297,7 +2298,7 @@ Transform:
   m_GameObject: {fileID: 8465537611731112471}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.1, z: 2.796}
+  m_LocalPosition: {x: 311.33566, y: -0.00002, z: 3893.6733}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2323,9 +2324,9 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 1063073525040925228}
+  - {fileID: 4891529645473793459}
   - {fileID: 6211424177164170952}
   - {fileID: 5316472212503792202}
-  - {fileID: 5369340214260326597}
   ForceRemoteRenderTimeframe: 0
 --- !u!143 &6806018713538926918
 CharacterController:
@@ -2371,6 +2372,23 @@ MonoBehaviour:
   braking: 20
   maxSpeed: 18
   rotationSpeed: 15
+--- !u!114 &4891529645473793459
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8465537611731112471}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2423488c6df2f5d4c8a9a35b3a5bc2e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCustomisation
+  _database: {fileID: 11400000, guid: b2455455eda57c9429a8c3f75754f37d, type: 2}
+  _visuals: {fileID: 4022341829299109561}
+  _HeadIndex: 0
+  _ColourIndex: 0
+  _FeetIndex: 0
 --- !u!114 &6211424177164170952
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2390,6 +2408,9 @@ MonoBehaviour:
   _slideDecelRate: 1.5
   _turnSpeed: 12
   _sprintSpeed: 10
+  _idealStepInterval: 0.35
+  _tooFastStepInterval: 0.18
+  _tooSlowStepInterval: 0.7
   _InPracticeMode:
     RawValue: 0
   _Speed: 0
@@ -2434,36 +2455,6 @@ MonoBehaviour:
   _finishZ: 233
   _State: 0
   _LastTime: 0
---- !u!114 &5369340214260326597
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8465537611731112471}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2423488c6df2f5d4c8a9a35b3a5bc2e3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerCustomization
-  _bodyRenderer: {fileID: 7686239469873846498}
-  _colourProperty: _BaseColor
-  _headBone: {fileID: 1175419321428303544}
-  _capPrefab: {fileID: 919132149155446097, guid: 0274b2f2a3bc6674a856393bda5b11b8, type: 3}
-  _glassesPrefab: {fileID: 919132149155446097, guid: 86e0cd9bb67e9954b82e896260f5c66d, type: 3}
-  _sunglassesPrefab: {fileID: 919132149155446097, guid: 41f7d0c11f19abf43aa25cfbfaeb4925, type: 3}
-  _capFit:
-    LocalPosition: {x: 0.003, y: 0.1253, z: 0.0051}
-    LocalEuler: {x: 0, y: 0, z: 0}
-    Scale: 1.35
-  _glassesFit:
-    LocalPosition: {x: 0.0026, y: 0.0762, z: 0.1381}
-    LocalEuler: {x: 0, y: 0, z: 0}
-    Scale: 1.3
-  _sunglassesFit:
-    LocalPosition: {x: 0.0019, y: 0.0615, z: 0.1351}
-    LocalEuler: {x: 0, y: 0, z: 0}
-    Scale: 1.3
 --- !u!54 &2697522606296147698
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2491,6 +2482,23 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &4022341829299109561
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8465537611731112471}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ae4a2335e6539d48934f08feaca6247, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CosmeticVisuals
+  _bodyRenderer: {fileID: 7686239469873846498}
+  _colourProperty: _BaseColor
+  _headBone: {fileID: 1175419321428303544}
+  _leftFootBone: {fileID: 5013087004072922188}
+  _rightFootBone: {fileID: 8442646695201994631}
 --- !u!1 &8837665217965812779
 GameObject:
   m_ObjectHideFlags: 0

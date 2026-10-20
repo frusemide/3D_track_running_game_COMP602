@@ -17,3 +17,4 @@ Debug keys for host player
 5 = cycle through player colours
 shift+7 = rainbow character
 O = start race without interacting with console
+B = open player management to ban or unban players (host only)
