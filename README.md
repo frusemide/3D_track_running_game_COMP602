@@ -126,5 +126,3 @@ Copyright (c) 2026 Om Patel, Braydon Johns, Mugisha Gwassa, Fredrick Dela Cruz a
 The original code, art, designs and other content created by the contributors for this project are **not open source**. No licence is granted to copy, modify, publish, distribute, sublicense or sell this work, or any part of it, in source or compiled form, without prior written permission from all of the contributors. Viewing this repository on GitHub, and assessment by COMP602 teaching staff, are permitted.
 
 Third-party assets and dependencies listed above are excluded from this notice and are governed by their own licences. They may not be redistributed from this repository.
-
-See [`LICENSE`](LICENSE) for the full terms.
