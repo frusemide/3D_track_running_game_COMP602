@@ -420,6 +420,18 @@ public class Player : NetworkBehaviour
     // Never drops below 10%, however negative the stats get.
     private float StatScale(int points) => Mathf.Max(0.1f, 1f + points * _percentPerStatPoint);
 
+    /// <summary>
+    /// Shortest gap (seconds) allowed between pedals while on a slip patch for this player,
+    /// right now (weather + their Grip stat). Pedalling faster than this on a patch = stumble.
+    /// Used by AIRacer so careful bots can cross patches without tripping.
+    /// </summary>
+    public float SlipPatchSafeStepInterval()
+    {
+        ItemStats mods = _customisation != null ? _customisation.GetStatModifiers() : default;
+        WeatherType weather = _raceManager != null ? _raceManager.Weather : WeatherType.Clear;
+        return RaceModifiers.TooFastStepInterval(_tooFastStepInterval, true, weather, mods.Grip);
+    }
+
     // Same idea for Recovery, with its own (stronger) per-point strength.
     private float RecoveryScale(int points) => Mathf.Max(0.1f, 1f + points * _recoveryPercentPerPoint);
 

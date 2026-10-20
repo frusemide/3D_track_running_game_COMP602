@@ -59,11 +59,25 @@ public class RaceManager : NetworkBehaviour
     [SerializeField] private float _startNoticeDuration = 2.5f; // duration start notice is shown
 
     [Header("Weather")]
-    [Tooltip("Pick Clear or Rain at random for each race. Untick to always use Fixed Weather.")]
+    [Tooltip("Pick the weather at random for each race. Untick to always use Fixed Weather.")]
     [SerializeField] private bool _randomWeather = true;
+    [Tooltip("When ticked (and a Slip Patch Layout exists), the number of puddles decides the weather: it's Rain (slower top speed, slipperier patches) once there are at least Rain At Patch Count puddles. Unticked, Rain Chance is used instead.")]
+    [SerializeField] private bool _weatherFollowsPatches = true;
+    [Tooltip("Puddle count at which a race counts as Rain for gameplay. 2 = light rain and above.")]
+    [Min(1)]
+    [SerializeField] private int _rainAtPatchCount = 2;
+    [Tooltip("Chance (0 to 1) that a race is rainy, used when Weather Follows Patches is unticked.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float _rainChance = 0.5f;
     [SerializeField] private WeatherType _fixedWeather = WeatherType.Clear;
+    [Tooltip("Switches skybox and rain particles to match the number of puddles. Found automatically in the scene if left empty.")]
+    [SerializeField] private WeatherVisuals _weatherVisuals;
     [Tooltip("Optional: rain particles / wet-look objects, switched on for every client while it's raining.")]
     [SerializeField] private GameObject _rainEffects;
+
+    [Header("Hazards")]
+    [Tooltip("Moves the slip patches to random spots for each race. Found automatically in the scene if left empty.")]
+    [SerializeField] private SlipPatchLayout _slipPatchLayout;
 
     [Header("Bots")]
     [Tooltip("Fills empty race slots with AI bots. Found automatically in the scene if left empty.")]
@@ -77,6 +91,9 @@ public class RaceManager : NetworkBehaviour
     [Networked] public WeatherType Weather { get; private set; }
     // Host picks this when a race starts, so every client plays the same race music track.
     [Networked] public int RaceMusicIndex { get; private set; }
+    // Host picks this when a race starts; every client lays out the slip patches from it,
+    // so everyone gets the same layout. 0 = the patches as placed in the scene (lobby).
+    [Networked] public int HazardSeed { get; private set; }
 
     // --- Read-only accessors for local presentation (RaceHud etc.) ---
     // Seconds left in the current phase timer (Countdown/Results/Podium); 0 once expired
@@ -92,6 +109,10 @@ public class RaceManager : NetworkBehaviour
         _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState);
         if (_botSpawner == null)
             _botSpawner = FindFirstObjectByType<BotSpawner>();
+        if (_slipPatchLayout == null)
+            _slipPatchLayout = FindFirstObjectByType<SlipPatchLayout>();
+        if (_weatherVisuals == null)
+            _weatherVisuals = FindFirstObjectByType<WeatherVisuals>();
         if (HasStateAuthority)
             Phase = RacePhase.Lobby;
     }
@@ -166,7 +187,23 @@ public class RaceManager : NetworkBehaviour
         _phaseTimer = TickTimer.CreateFromSeconds(Runner, _positioningDuration);
 
         // Weather is decided before the countdown so players see it while lining up.
-        Weather = _randomWeather ? (WeatherType)UnityEngine.Random.Range(0, 2) : _fixedWeather;   // 0 = Clear, 1 = Rain
+        // New slip patch layout for this race (never 0, which means "scene layout").
+        HazardSeed = UnityEngine.Random.Range(1, int.MaxValue);
+
+        if (!_randomWeather)
+        {
+            Weather = _fixedWeather;
+        }
+        else if (_weatherFollowsPatches && _slipPatchLayout != null)
+        {
+            // More puddles = wetter race. The patch count comes from the same seed every client uses.
+            int puddles = _slipPatchLayout.GetPatchCount(HazardSeed);
+            Weather = puddles >= _rainAtPatchCount ? WeatherType.Rain : WeatherType.Clear;
+        }
+        else
+        {
+            Weather = UnityEngine.Random.value < _rainChance ? WeatherType.Rain : WeatherType.Clear;
+        }
         Debug.Log($"[RaceManager] Weather for this race: {Weather}");
 
         PickRaceMusic();
@@ -304,6 +341,7 @@ public class RaceManager : NetworkBehaviour
         Phase = RacePhase.Lobby;
         _startNoticeTimer = TickTimer.None;
         Weather = WeatherType.Clear;   // the lobby is always dry
+        HazardSeed = 0;                // slip patches back where they were placed in the scene
 
         // Bots only exist for the race; remove them before everyone returns to the lobby.
         if (_botSpawner != null)
@@ -382,6 +420,19 @@ public class RaceManager : NetworkBehaviour
         bool raining = Weather == WeatherType.Rain;
         if (_rainEffects != null && _rainEffects.activeSelf != raining)
             _rainEffects.SetActive(raining);
+
+        // Slip patch layout follows the networked seed (only does work when it changes).
+        // Applied on every machine well before Racing, since the seed is set at Positioning.
+        if (_slipPatchLayout != null)
+            _slipPatchLayout.ApplyLayout(HazardSeed);
+
+        // Skybox + rain particles match the puddle count during a race; the lobby keeps the
+        // scene's own look (level -1).
+        if (_weatherVisuals != null)
+        {
+            int level = HazardSeed == 0 || _slipPatchLayout == null ? -1 : _slipPatchLayout.ActivePatchCount;
+            _weatherVisuals.SetLevel(level);
+        }
 
         // Background music follows the phase. Checked every frame (like the rain) so it also
         // starts for the host on spawn and for late joiners; SetMusic only acts on a change.

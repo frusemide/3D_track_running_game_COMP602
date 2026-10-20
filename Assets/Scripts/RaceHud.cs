@@ -17,7 +17,7 @@ using UnityEngine.UI;
 //    your placement at that moment. Disappears once the race as a whole moves past
 //    Racing (so it doesn't linger through Results).
 //  - Results panel: the full standings list, shown once RaceManager.Phase reaches
-//    Results/Podium (built once per race, not every frame).
+//    Results, and hidden again for the Podium (built once per race, not every frame).
 public class RaceHud : MonoBehaviour
 {
     [System.Serializable]
@@ -362,8 +362,8 @@ public class RaceHud : MonoBehaviour
     {
         if (_resultsRoot == null) return;
 
-        bool show = _raceManager.Phase == RaceManager.RacePhase.Results
-                 || _raceManager.Phase == RaceManager.RacePhase.Podium;
+        // Results phase only: hidden again once the podium starts.
+        bool show = _raceManager.Phase == RaceManager.RacePhase.Results;
 
         _resultsRoot.SetActive(show);
 

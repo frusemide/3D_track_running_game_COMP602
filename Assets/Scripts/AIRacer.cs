@@ -16,6 +16,10 @@ public class AIRacer : NetworkBehaviour
         [Range(0f, 0.5f)] public float errorRate;      // Chance to press same pedal twice
     }
 
+    [Header("Slip patches")]
+    [Tooltip("Bots at this difficulty or higher never trip on slip patches: they slow their pedalling to a safe pace while on one and make no pedal mistakes there. 0 = Easy, 1 = Medium, 2 = Hard, 3 = Expert. Set above 3 to turn off.")]
+    [SerializeField] private int _slipProofFromDifficulty = 3;
+
     [Header("Bot Difficulty Presets")]
     [SerializeField] private BotProfile[] _botProfiles = new BotProfile[]
     {
@@ -33,6 +37,8 @@ public class AIRacer : NetworkBehaviour
     private bool _isActive = false;
     private int _ticksSinceLastPress = 0;
     private int _ticksPerPress = 0; // How many ticks between presses
+    private int _difficultyIndex = -1;
+    private int _lastPressTick = -1;   // tick of this bot's last pedal press (-1 = none yet / just recovered)
 
     [Networked] private NetworkBool _isBotControlled { get; set; }
 
@@ -50,6 +56,7 @@ public class AIRacer : NetworkBehaviour
         }
 
         _currentProfile = _botProfiles[difficultyIndex];
+        _difficultyIndex = difficultyIndex;
         _isInitialized = true;
         _isBotLocal = true;
         
@@ -115,16 +122,33 @@ public class AIRacer : NetworkBehaviour
         if (_player.RunState == Player.StumbleState.Recovering)
         {
             _ticksSinceLastPress = 0;
+            _lastPressTick = -1;   // first pedal after recovering is always safe
             return data;
         }
 
         // Increment tick counter
         _ticksSinceLastPress++;
 
+        // Careful bots: on a slip patch, wait until the gap since the last pedal is safe.
+        bool carefulOnPatch = _difficultyIndex >= _slipProofFromDifficulty
+                              && SlipPatch.IsOnAnyPatch(_player.transform.position);
+        // Use the Player's Runner: this component is added at runtime after the bot spawned,
+        // so its own Runner/Object are never set up (they're null).
+        NetworkRunner runner = _player.Runner;
+        if (carefulOnPatch && _lastPressTick >= 0 && runner != null)
+        {
+            // One extra tick of margin so rounding can never land exactly on the limit.
+            float safeGap = _player.SlipPatchSafeStepInterval() + runner.DeltaTime;
+            float sinceLastPress = ((int)runner.Tick - _lastPressTick) * runner.DeltaTime;
+            if (sinceLastPress < safeGap)
+                return data;   // hold this pedal for now
+        }
+
         // Check if it's time to press the next pedal
         if (_ticksSinceLastPress >= _ticksPerPress)
         {
-            bool shouldMakeError = Random.value < _currentProfile.errorRate;
+            // Careful bots never fumble a pedal while on a patch.
+            bool shouldMakeError = !carefulOnPatch && Random.value < _currentProfile.errorRate;
             
             if (shouldMakeError)
             {
@@ -144,6 +168,8 @@ public class AIRacer : NetworkBehaviour
                 else
                     data.Buttons.Set(NetworkInputData.RunPedalB, true);
             }
+
+            _lastPressTick = runner != null ? (int)runner.Tick : -1;
 
             // Reset tick counter with small variation
             int variation = Mathf.RoundToInt(Mathf.Lerp(2f, 1f, _currentProfile.skill));
