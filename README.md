@@ -11,7 +11,7 @@ Players gather in a shared lobby, customise their runner, warm up on a practice 
 ## Contributors
 
 - Om Patel
-- Braydon Johns
+- Brayden Johns
 - Mugisha Gwassa
 - Fredrick Dela Cruz
 - David Kothapally
