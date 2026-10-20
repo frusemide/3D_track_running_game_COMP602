@@ -125,7 +125,7 @@ This project uses the free assets and packages below. **They are not covered by 
 | Content | Creator | Notes |
 |---|---|---|
 | [Mixamo](https://www.mixamo.com/) character (Y Bot) and animations | Adobe | Jogging, sprinting, falling, getting up, idle, victory, cheering, clapping and dancing animations in `Assets/CharacterAnimations` |
-| Music and sound effects | Various | Race music (`Assets/Audio/RaceMusic`), lobby music, voice lines and sound effects in `Assets/Audio`. Not created by the team and not covered by this project's licence |
+| Music and sound effects | Various | Race music (`Assets/Audio/RaceMusic`), lobby music, voice lines and sound effects in `Assets/Audio`. Music covered by World Music Day Giveaway Commercial Usage License |
 
 ### Packages and SDKs
 
