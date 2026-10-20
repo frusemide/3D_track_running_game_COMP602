@@ -91,18 +91,18 @@ This project uses the free assets and packages below. **They are not covered by 
 |---|---|---|---|
 | [AllSky Free: 10 Sky / Skybox Set](https://assetstore.unity.com/packages/2d/textures-materials/sky/allsky-free-10-sky-skybox-set-146014) | rpgwhitelock | Skyboxes | `Assets/map shit/AllSkyFree` |
 | [Grass Flowers Pack Free](https://assetstore.unity.com/packages/2d/textures-materials/nature/grass-flowers-pack-free-138810) | ALP | Grass and flower details | `Assets/map shit/ALP_Assets` |
-| PBR Grass Textures *(confirm exact name and link)* | *(creator)* | Ground and grass materials | `Assets/map shit/PBR_Grass_Textures` |
-| Pro Nature Biome: Starter Pack *(confirm exact name and link)* | Finotti Games | Nature models and environment | `Assets/FinottiGames` |
-| Foliage Free *(confirm exact name and link)* | Jake *(confirm publisher name)* | Trees and foliage | `Assets/Foliage Free` |
-| PolyMate Starter *(confirm exact name and link)* | ALSTRA INFINITE | Low-poly characters (City Folks, Urban Man) | `Assets/ALSTRA INFINITE` |
-| NPC Casual Set *(confirm exact name and link)* | *(creator)* | Shoe models for cosmetics | `Assets/npc_casual_set_00` |
+| PBR Grass Textures |  | Ground and grass materials | `Assets/map shit/PBR_Grass_Textures` |
+| Pro Nature Biome: Starter Pack | Finotti Games | Nature models and environment | `Assets/FinottiGames` |
+| Foliage Free | Jake  | Trees and foliage | `Assets/Foliage Free` |
+| PolyMate Starter (https://assetstore.unity.com/packages/3d/characters/city-folks-polymate-low-poly-modular-character-379848)| ALSTRA INFINITE | Low-poly characters (City Folks, Urban Man) | `Assets/ALSTRA INFINITE` |
+| NPC Casual Set  (https://assetstore.unity.com/packages/3d/characters/humanoids/humans/npc-casual-set-00-326131)| Chepatack | Shoe models for cosmetics | `Assets/npc_casual_set_00` |
 
 ### Other third-party content
 
 | Content | Creator | Notes |
 |---|---|---|
 | [Mixamo](https://www.mixamo.com/) character (Y Bot) and animations | Adobe | Jogging, sprinting, falling, getting up, idle, victory, cheering, clapping and dancing animations in `Assets/CharacterAnimations` |
-| Music and sound effects | *(list each source)* | Race music (`Assets/Audio/RaceMusic`), lobby music and sound effects: credit each track's creator and licence here |
+| Music and sound effects | Andrey Sitkov & Q Up Arts | Race music (`Assets/Audio/RaceMusic`), lobby music and racing music |
 
 ### Packages and SDKs
 
