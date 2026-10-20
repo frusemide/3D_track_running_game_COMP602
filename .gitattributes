@@ -157,7 +157,7 @@ Packages/packages-lock.json linguist-generated
 *.exe                   lfs
 
 # Documents
-*.pdf                   lfs
+#*.pdf                   lfs
 
 # ETC
 *.a                     lfs
